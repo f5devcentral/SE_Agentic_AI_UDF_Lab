@@ -29,7 +29,7 @@ Browser / curl
                          └── StateGraph
                                │
                                ├── supervisor_node ──► BiFrost Gateway (:8080)
-                               │                          ├── Ollama (mistral:7b)
+                               │                          ├── Ollama (llama3.2:3b)
                                │                          └── Calypso AI (semantic inspect)
                                │
                                ├── flight_node ──────► flight-agent  :8001 /reason
