@@ -39,8 +39,8 @@ def travel_planner_node(state: AgentState):
     
     # Connect to the BiFrost AI Gateway acting as an OpenAI compatible endpoint
     llm = ChatOpenAI(
-        model="mistral:7b-instruct-q4_K_M", 
-        openai_api_key="bifrost-passthrough", 
+        model="llama3.2:3b",
+        openai_api_key="bifrost-passthrough",
         openai_api_base=f"{bifrost_url}/v1",
         max_tokens=20
     )
@@ -59,7 +59,7 @@ def travel_planner_node(state: AgentState):
         response = llm.invoke(prompt_messages)
         content = response.content.strip().replace("\"", "")
         
-        # Robust parsing mechanism for the mistral LLM Output
+        # Robust parsing mechanism for the LLM output
         choices = ["flight_agent", "hotel_agent", "activity_agent", "weather_agent", "FINISH"]
         next_node = "FINISH"
         for choice in choices:
