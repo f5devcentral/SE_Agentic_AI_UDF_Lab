@@ -1,0 +1,43 @@
+{
+  "destinations": [
+    {
+      "city": "Barcelona",
+      "country": "Spain",
+      "type": "coastal-urban",
+      "ideal_season": "spring",
+      "activities": [
+        "Montjuïc Hill and Botanical Gardens",
+        "Parc de Collserola Hiking",
+        "Beach Walks and Coastal Paths",
+        "Day Trip to Montserrat",
+        "Parc de la Ciutadella"
+      ],
+      "budget_hotels": [
+        "GreenStay Barcelona Park Hotel",
+        "Montjuïc Garden Inn",
+        "Coastal Breeze Budget Hotel",
+        "Collserola Trail Lodge"
+      ]
+    },
+    {
+      "city": "ExampleAlpsTown",
+      "country": "ExampleLand",
+      "type": "mountain",
+      "ideal_season": "spring",
+      "activities": [
+        "Valley Floor Nature Walks",
+        "Low-Elevation Forest Hikes",
+        "Scenic Cable Car + Short Walk",
+        "Lakeside Trails",
+        "Nature Interpretation Trails"
+      ],
+      "budget_hotels": [
+        "Alpine Valley Guesthouse",
+        "Mountain View Budget Hotel",
+        "Riverside Eco-Lodge",
+        "Hostel with Private Rooms"
+      ]
+    }
+  ]
+}
+

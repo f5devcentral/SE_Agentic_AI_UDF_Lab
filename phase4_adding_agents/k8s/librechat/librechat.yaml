@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librechat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: librechat
+  template:
+    metadata:
+      labels:
+        app: librechat
+    spec:
+      volumes:
+        - name: librechat-config
+          configMap:
+            name: librechat-config
+      containers:
+        - name: librechat
+          image: librechat/librechat:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3080
+          envFrom:
+            - configMapRef:
+                name: librechat-config
+          volumeMounts:
+            - name: librechat-config  # ← now matches volumes[]
+              mountPath: /app/librechat.yaml
+              subPath: librechat.yaml
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: librechat
+spec:
+  type: NodePort
+  selector:
+    app: librechat
+  ports:
+    - name: http
+      port: 3080
+      targetPort: 3080
+      nodePort: 30080
+

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: travel-mcp
+  namespace: demo-travel
+subsets:
+  - addresses:
+      - ip: 10.1.1.6
+    ports:
+      - port: 30100
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-mcp
+  namespace: demo-travel
+spec:
+  ports:
+    - port: 8000
+      targetPort: 30100

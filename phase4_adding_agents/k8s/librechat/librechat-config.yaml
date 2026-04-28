@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: librechat-config
+data:
+  # Core database connection
+  MONGO_URI: "mongodb://librechat-mongo:27017/librechat"
+
+  # Auth / JWT (demo‑grade; replace with strong secrets in real env)
+  NEXTAUTH_SECRET: "super-long-random-demo-secret"
+  JWT_SECRET: "super-long-random-demo-secret"
+  JWT_REFRESH_SECRET: "super-long-random-demo-refresh-secret"
+
+  # Ollama endpoint inside the cluster
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  OLLAMA_API_KEY: "ollama"
+
+  # Optional helper URLs for your own reference or future wiring
+  RAG_API_URL: "http://rag-service:8000/search"
+  TRAVEL_MCP_URL: "http://travel-agent:8001/mcp"
+  WEATHER_MCP_URL: "http://weather-agent:8005/mcp"
+  ALLOW_REGISTRATION: "true"
+  ALLOW_LOCAL_AUTH: "true"
+  ALLOW_SOCIAL_LOGIN: "false"
+
+  CONFIG_BYPASS_VALIDATION: "true"
+
+  # FIXED: Correct librechat.yaml structure
+  librechat.yaml: |
+    version: "1.3.6"
+    
+    mcpSettings:
+      allowedDomains:
+        - "10.1.1.5"
+        - "10.1.1.*"
+        - "travel-agent.default.svc.cluster.local"
+        - "weather-agent.default.svc.cluster.local"
+        - "rag-service.default.svc.cluster.local"
+
+    interface:
+      agents:
+        disableBuilder: false
+      mcpServers:
+        use: true
+        share: true          
+
+    endpoints:
+      agents:
+        disableBuilder: false
+        allowedProviders:
+          - "ollama"
+          - "openAI"
+      ollama:
+        apiKey: "ollama"
+        baseURL: "http://ollama:11434"
+        models:
+          default: 
+            - "llama3.2:3b"
+            - "mistral:7b-instruct-q4_K_M"
+          fetch: false 
+        titleConvo: true
+        titleModel: "llama3.2:3b"
+        summarize: false
+      custom:
+        apiKey: "ollama"
+        baseURL: "http://ollama:11434/v1"
+        models:
+          default: 
+            - "llama3.2:3b" 
+            - "mistral:7b-instruct-q4_K_M"
+          fetch: false
+        titleConvo: true
+        titleModel: "llama3.2:3b"
+        summarize: false
+
+    mcpServers:
+      travel:
+        label: "Travel MCP"
+        url: "http://10.1.1.5:30100/mcp"
+        type: "streamable-http"
+        startup: true
+      activities:
+        label: "Weather MCP"
+        url: "http://10.1.1.5:30101/mcp"
+        type: "streamable-http"
+        startup: true
+

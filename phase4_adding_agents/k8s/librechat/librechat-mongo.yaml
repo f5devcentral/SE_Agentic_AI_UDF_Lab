@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: librechat-mongo-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librechat-mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: librechat-mongo
+  template:
+    metadata:
+      labels:
+        app: librechat-mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: librechat-mongo-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: librechat-mongo
+spec:
+  selector:
+    app: librechat-mongo
+  ports:
+    - port: 27017
+      targetPort: 27017
+

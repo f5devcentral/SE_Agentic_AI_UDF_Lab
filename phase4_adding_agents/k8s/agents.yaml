@@ -1,0 +1,243 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travel-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: travel-agent
+  template:
+    metadata:
+      labels:
+        app: travel-agent
+    spec:
+      containers:
+        - name: travel-agent
+          image: 10.1.1.7:30500/ai/travel-agent:v0.4
+          imagePullPolicy: Always
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OLLAMA_URL
+              value: "http://ollama:11434"
+            - name: LLM_MODEL
+              value: "llama3.2:3b"
+          ports:
+            - containerPort: 8001
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-agent
+spec:
+  type: NodePort
+  selector:
+    app: travel-agent
+  ports:
+    - port: 8004
+      targetPort: 8004
+      nodePort: 30801
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flight-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flight-agent
+  template:
+    metadata:
+      labels:
+        app: flight-agent
+    spec:
+      containers:
+        - name: flight-agent
+          image: 10.1.1.7:30500/ai/flights-agent:v0.4
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OLLAMA_URL        
+              value: "http://ollama:11434"
+            - name: LLM_MODEL         
+              value: "llama3.2:3b"
+
+          ports:
+            - containerPort: 8002
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flight-agent
+spec:
+  type: NodePort
+  selector:
+    app: flight-agent
+  ports:
+    - port: 8002
+      targetPort: 8002
+      nodePort: 30802
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hotel-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hotel-agent
+  template:
+    metadata:
+      labels:
+        app: hotel-agent
+    spec:
+      containers:
+        - name: hotel-agent
+          image: 10.1.1.7:30500/ai/hotels-agent:v0.4
+          imagePullPolicy: Always
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OLLAMA_URL        
+              value: "http://ollama:11434"
+            - name: LLM_MODEL         
+              value: "llama3.2:3b"
+
+          ports:
+            - containerPort: 8003
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hotel-agent
+spec:
+  type: NodePort
+  selector:
+    app: hotel-agent
+  ports:
+    - port: 8003
+      targetPort: 8003
+      nodePort: 30803
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: activity-agent
+  template:
+    metadata:
+      labels:
+        app: activity-agent
+    spec:
+      containers:
+        - name: activity-agent
+          image: 10.1.1.7:30500/ai/activities-agent:v0.4
+          imagePullPolicy: Always
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OLLAMA_URL        
+              value: "http://ollama:11434"
+            - name: LLM_MODEL         
+              value: "llama3.2:3b"
+
+          ports:
+            - containerPort: 8004
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: activity-agent
+spec:
+  type: NodePort
+  selector:
+    app: activity-agent
+  ports:
+    - port: 8004
+      targetPort: 8004
+      nodePort: 30804
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-agent
+  template:
+    metadata:
+      labels:
+        app: weather-agent
+    spec:
+      containers:
+        - name: weather-agent
+          image: 10.1.1.7:30500/ai/weather-agent:v0.4
+          imagePullPolicy: Always
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OLLAMA_URL        
+              value: "http://ollama:11434"
+            - name: LLM_MODEL         
+              value: "llama3.2:3b"
+
+          ports:
+            - containerPort: 8005
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-agent
+spec:
+  type: NodePort
+  selector:
+    app: weather-agent
+  ports:
+    - port: 8005
+      targetPort: 8005
+      nodePort: 30805

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Planner</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --blue:       #1a73e8;
+            --blue-dark:  #1558b0;
+            --green:      #27ae60;
+            --orange:     #e65100;
+            --orange-bg:  #fff3e0;
+            --sky:        #0ea5e9;
+            --sky-dark:   #0284c7;
+            --bg:         #f0f4f8;
+            --white:      #ffffff;
+            --text:       #2c3e50;
+            --muted:      #555;
+            --border:     #ddd;
+            --radius:     10px;
+            --shadow:     0 2px 8px rgba(0,0,0,0.08);
+            --shadow-lg:  0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; }
+
+        header {
+            background: linear-gradient(135deg, var(--blue), #0d47a1);
+            color: white; padding: 32px 20px; text-align: center;
+        }
+        header h1 { font-size: 2.2em; margin-bottom: 6px; }
+        header p  { opacity: 0.85; font-size: 1.05em; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 30px 20px; }
+
+        .search-card {
+            background: var(--white); border-radius: 12px; padding: 28px;
+            box-shadow: var(--shadow-lg); margin-bottom: 28px;
+        }
+        .search-card h2 { margin-bottom: 20px; color: var(--blue); font-size: 1.2em; }
+        .prompt-group { margin-bottom: 16px; }
+        .prompt-group label {
+            font-size: 0.85em; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;
+        }
+        textarea#prompt {
+            width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
+            font-size: 1em; font-family: inherit; resize: vertical; min-height: 80px;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+        textarea#prompt:focus {
+            outline: none; border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+        }
+        .btn-submit {
+            background: var(--blue); color: white; border: none;
+            padding: 11px 28px; border-radius: 8px; font-size: 1em;
+            font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-submit:hover:not(:disabled) { background: var(--blue-dark); }
+        .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        .error-inline {
+            color: var(--orange); font-size: 0.95em; margin: 12px 0; padding: 8px 12px;
+            background: var(--orange-bg); border-radius: 6px; border-left: 3px solid var(--orange);
+        }
+
+        #plan-loading {
+            display: none; align-items: center; gap: 12px;
+            padding: 18px 0 6px; color: var(--muted); font-size: 0.9em;
+        }
+        #plan-loading.active { display: flex; }
+        .plan-spinner {
+            width: 18px; height: 18px; flex-shrink: 0;
+            border: 2px solid #ccd6e8; border-top-color: var(--blue);
+            border-radius: 50%; animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #plan-meta {
+            display: none; flex-wrap: wrap; gap: 8px;
+            margin-bottom: 18px; font-size: 0.78em; font-family: monospace; color: var(--muted);
+        }
+        #plan-meta.visible { display: flex; }
+        #plan-meta .chip {
+            background: #f0f4f8; border: 1px solid #d0dae8;
+            border-radius: 4px; padding: 3px 9px;
+        }
+        #plan-meta .chip.hi {
+            background: #e8f0fe; border-color: #a8c0f0;
+            color: var(--blue); font-weight: 600;
+        }
+
+        #token-table-wrap {
+            display: none; background: var(--white); border-radius: var(--radius);
+            padding: 18px 20px; box-shadow: var(--shadow); border-left: 4px solid var(--blue);
+            margin-bottom: 28px;
+        }
+        #token-table-wrap.visible { display: block; }
+        #token-table-wrap h4 {
+            font-size: 0.85em; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;
+        }
+        #token-table {
+            width: 100%; border-collapse: collapse; font-size: 0.85em; font-family: monospace;
+        }
+        #token-table th {
+            text-align: left; padding: 5px 10px;
+            border-bottom: 1px solid #e0e8f0; color: var(--muted); font-weight: 600;
+        }
+        #token-table td { padding: 5px 10px; border-bottom: 1px solid #f0f4f8; }
+        #token-table tr:last-child td { border-bottom: none; }
+        #token-table td.num { text-align: right; }
+        #token-table td.status-ok   { color: var(--green); }
+        #token-table td.status-warn { color: var(--orange); }
+
+        .response-section { margin-bottom: 32px; }
+        .response-section h3 { font-size: 1.4em; font-weight: 700; margin-bottom: 16px; color: var(--blue); }
+        .response-block {
+            background: var(--white); border-radius: var(--radius); padding: 20px;
+            box-shadow: var(--shadow); border-left: 4px solid var(--blue);
+            font-size: 0.95em; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;
+        }
+
+        .section { margin-bottom: 40px; }
+        .section-title {
+            font-size: 1.4em; font-weight: 700; margin-bottom: 16px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .section-title span { font-size: 1.3em; }
+        .mcp-badge {
+            display: inline-block; background: #f3e8ff; color: #7c3aed;
+            border-radius: 4px; padding: 1px 7px; font-size: 0.72em;
+            font-weight: 700; letter-spacing: 0.5px; vertical-align: middle; margin-left: 6px;
+        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+        .card {
+            background: var(--white); border-radius: var(--radius); padding: 18px;
+            box-shadow: var(--shadow); border-left: 4px solid var(--blue);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+        .card h3 { font-size: 1.05em; margin-bottom: 10px; color: #1a1a2e; }
+        .card p  { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+        .price   { font-size: 1.3em; font-weight: 700; color: var(--green); margin-top: 10px; }
+
+        .weather-summary {
+            background: linear-gradient(135deg, var(--sky), var(--sky-dark));
+            color: white; border-radius: 12px; padding: 20px 24px;
+            margin-bottom: 16px; font-size: 1em;
+        }
+        .weather-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+        .weather-card {
+            background: var(--white); border-radius: var(--radius); padding: 16px 12px;
+            text-align: center; box-shadow: var(--shadow); border-top: 4px solid var(--sky);
+        }
+        .weather-card .icon  { font-size: 2em; margin-bottom: 4px; }
+        .weather-card .dow   { font-weight: 600; font-size: 0.9em; }
+        .weather-card .date  { font-size: 0.78em; color: var(--muted); }
+        .weather-card .cond  { font-size: 0.82em; color: var(--muted); margin: 4px 0; }
+        .weather-card .temp  { font-weight: 700; color: var(--text); }
+        .weather-card.bad    { border-top-color: var(--orange); background: #fff8f5; }
+        .weather-card.good   { border-top-color: var(--green); }
+
+        #budget-overlay {
+            display: none;
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.55);
+            align-items: center; justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        #budget-overlay.show { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        #budget-modal {
+            background: var(--white); border-radius: 14px; padding: 32px 36px;
+            max-width: 460px; width: 90%; box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+            animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1);
+            border-top: 5px solid var(--orange);
+        }
+        @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        #budget-modal .modal-icon  { font-size: 2.8em; margin-bottom: 12px; }
+        #budget-modal h2 { color: var(--orange); font-size: 1.25em; margin-bottom: 10px; }
+        #budget-modal p  { font-size: 0.95em; line-height: 1.6; color: var(--text); margin-bottom: 20px; }
+        #budget-modal .modal-close {
+            background: var(--orange); color: white; border: none;
+            padding: 10px 26px; border-radius: 8px; font-size: 1em;
+            font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        #budget-modal .modal-close:hover { background: #bf3600; }
+
+        @media (max-width: 768px) {
+            .weather-grid { grid-template-columns: repeat(3, 1fr); }
+            header h1 { font-size: 1.6em; }
+        }
+        @media (max-width: 480px) {
+            .weather-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="budget-overlay" role="dialog" aria-modal="true" aria-labelledby="budget-title">
+    <div id="budget-modal">
+        <div class="modal-icon">⚠️</div>
+        <h2 id="budget-title">Over Budget Warning</h2>
+        <p id="budget-msg">Loading…</p>
+        <button class="modal-close" onclick="closeOverBudget()" aria-label="Dismiss warning">Got it</button>
+    </div>
+</div>
+
+<header>
+    <h1>✈️ Travel Planner</h1>
+    <p>Describe your travel needs in one prompt and let the agent orchestrate flights, hotels, activities and weather</p>
+</header>
+
+<div class="container">
+
+    <div class="search-card">
+        <h2>🗣️ Ask your travel agent</h2>
+        <form id="plan-form" onsubmit="return handleSubmit(event)">
+            <div class="prompt-group">
+                <label for="prompt">Your prompt</label>
+                <textarea id="prompt" name="prompt"
+                    placeholder="e.g. Plan a 1-week trip from Paris to Rome in summer with a budget of €3000. I like museums and shopping"></textarea>
+            </div>
+            <button type="submit" class="btn-submit" id="submit-btn">Plan my trip</button>
+        </form>
+
+        <div id="plan-loading">
+            <div class="plan-spinner"></div>
+            <span id="loading-text">Orchestrating agents…</span>
+        </div>
+        <div id="plan-error" class="error-inline" style="display:none"></div>
+    </div>
+
+    <div id="plan-meta"></div>
+
+    <div id="token-table-wrap">
+        <h4>Token accounting per agent</h4>
+        <table id="token-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th style="text-align:right">Input</th>
+                    <th style="text-align:right">Output</th>
+                    <th style="text-align:right">Total</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="token-tbody"></tbody>
+        </table>
+    </div>
+
+    <div class="response-section" id="response-section" style="display:none">
+        <h3>🤖 Agent response</h3>
+        <div class="response-block" id="response-block"></div>
+    </div>
+
+    <div class="section" id="flights-section" style="display:none">
+        <div class="section-title"><span>✈️</span> Flights <span class="mcp-badge">AI</span></div>
+        <div class="grid" id="flights-grid"></div>
+    </div>
+
+    <div class="section" id="hotels-section" style="display:none">
+        <div class="section-title"><span>🏨</span> Hotels <span class="mcp-badge">AI</span></div>
+        <div class="grid" id="hotels-grid"></div>
+    </div>
+
+    <div class="section" id="activities-section" style="display:none">
+        <div class="section-title"><span>🎯</span> Activities <span class="mcp-badge">AI</span></div>
+        <div class="grid" id="activities-grid"></div>
+    </div>
+
+    <div class="section" id="weather-section" style="display:none">
+        <div class="section-title"><span>🌤️</span> Weather Forecast <span class="mcp-badge">MCP</span></div>
+        <div id="weather-summary-block" class="weather-summary"></div>
+        <div class="weather-grid" id="weather-grid"></div>
+        <div id="weather-tips" style="margin-top:12px;font-size:0.88em;color:var(--muted)"></div>
+    </div>
+
+</div>
+
+<script>
+const STEPS = [
+    'Extracting travel context…',
+    'Searching RAG knowledge base…',
+    'Discovering A2A agents…',
+    'Calling MCP servers…',
+    'Flight agent · tasks/send…',
+    'Hotel agent · tasks/send…',
+    'Activity agent · tasks/send…',
+    'Weather agent · tasks/send…',
+    'Synthesising itinerary…',
+];
+let _stepIdx = 0, _stepTimer = null;
+
+function startSteps() {
+    _stepIdx = 0;
+    document.getElementById('loading-text').textContent = STEPS[0];
+    _stepTimer = setInterval(() => {
+        if (_stepIdx < STEPS.length - 1) {
+            document.getElementById('loading-text').textContent = STEPS[++_stepIdx];
+        }
+    }, 1100);
+}
+
+function stopSteps() {
+    clearInterval(_stepTimer);
+}
+
+function fmt(n) {
+    return Number(n).toLocaleString();
+}
+
+function esc(s) {
+    return String(s ?? '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+}
+
+function showOverBudget(msg) {
+    document.getElementById('budget-msg').textContent = msg;
+    document.getElementById('budget-overlay').classList.add('show');
+}
+
+function closeOverBudget() {
+    document.getElementById('budget-overlay').classList.remove('show');
+}
+
+document.getElementById('budget-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeOverBudget();
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeOverBudget();
+});
+
+function handleSubmit(e) {
+    e.preventDefault();
+
+    const prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) return false;
+
+    ['response-section','flights-section','hotels-section','activities-section','weather-section']
+        .forEach(id => document.getElementById(id).style.display = 'none');
+
+    document.getElementById('plan-meta').classList.remove('visible');
+    document.getElementById('token-table-wrap').classList.remove('visible');
+    document.getElementById('plan-error').style.display = 'none';
+
+    document.getElementById('submit-btn').disabled = true;
+    document.getElementById('plan-loading').classList.add('active');
+    startSteps();
+
+    fetch('/api/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        stopSteps();
+        document.getElementById('plan-loading').classList.remove('active');
+        document.getElementById('submit-btn').disabled = false;
+
+        if (data.error) {
+            showError(data.error);
+            return;
+        }
+
+        renderMeta(data);
+        renderTokenTable(data.tokens);
+        renderResponse(data.itinerary);
+        renderFlights(data.itinerary);
+        renderHotels(data.itinerary);
+        renderActivities(data.itinerary);
+        renderWeather(data.itinerary);
+
+        const warning = data.itinerary?.over_budget_warning;
+        if (warning) showOverBudget(warning);
+    })
+    .catch(err => {
+        stopSteps();
+        document.getElementById('plan-loading').classList.remove('active');
+        document.getElementById('submit-btn').disabled = false;
+        showError('Network error: ' + err.message);
+    });
+
+    return false;
+}
+
+function showError(msg) {
+    const el = document.getElementById('plan-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function renderMeta(data) {
+    const { elapsed_ms, transport, tokens, itinerary } = data;
+    const strip = document.getElementById('plan-meta');
+    const chips = [
+        { text: `⏱ ${(elapsed_ms/1000).toFixed(2)}s`, hi: true },
+        { text: `transport: ${transport.toUpperCase()}` },
+        { text: `user input: ${fmt(tokens.user_input)} tkns` },
+        { text: `augmented: ${fmt(tokens.augmented_total)} tkns` },
+        { text: `agent in Σ: ${fmt(tokens.total_agent_input)} tkns` },
+        { text: `agent out Σ: ${fmt(tokens.total_agent_output)} tkns` },
+        { text: `response: ${fmt(tokens.response)} tkns` },
+        { text: `total: ${fmt(tokens.grand_total)} tkns`, hi: true },
+        { text: `${itinerary.agents_discovered?.length ?? 0} agents · ${itinerary.rag_docs_count ?? 0} RAG docs` },
+    ];
+
+    strip.innerHTML = chips.map(c => `<span class="chip${c.hi ? ' hi' : ''}">${esc(c.text)}</span>`).join('');
+    strip.classList.add('visible');
+}
+
+function renderTokenTable(tokens) {
+    const tbody = document.getElementById('token-tbody');
+    tbody.innerHTML = '';
+
+    (tokens.agents || []).forEach(a => {
+        const total  = a.input + a.output;
+        const isOk   = ['completed'].includes(a.status);
+        const isWarn = ['failed','error','needs_mcp'].includes(a.status);
+        const cls    = isOk ? 'status-ok' : isWarn ? 'status-warn' : '';
+
+        tbody.insertAdjacentHTML('beforeend', `
+            <tr>
+                <td>${esc(a.agent)}</td>
+                <td class="num">${fmt(a.input)}</td>
+                <td class="num">${fmt(a.output)}</td>
+                <td class="num">${fmt(total)}</td>
+                <td class="${cls}">${esc(a.status)}</td>
+            </tr>`);
+    });
+
+    document.getElementById('token-table-wrap').classList.add('visible');
+}
+
+function renderResponse(itinerary) {
+    const lines   = [];
+    const intent  = itinerary.intent || itinerary.user_context || {};
+    const results = itinerary.agent_results || {};
+    const loop    = itinerary.loop || [];
+
+    if (intent.destination) {
+        lines.push(
+            `Trip to ${intent.destination}`
+            + (intent.origin ? ` from ${intent.origin}` : '')
+            + (intent.season ? `, ${intent.season}` : '')
+            + (intent.duration ? `, ${intent.duration}` : '')
+            + (intent.budget_eur ? `, budget €${fmt(intent.budget_eur)}` : '')
+            + (intent.interests?.length ? `, interests: ${intent.interests.join(', ')}` : '')
+        );
+    }
+
+    const best = itinerary.best_combo;
+    if (best) {
+        lines.push(`\nBest combo (iteration ${best.iteration ?? '?'}, departure ${best.date ?? '?'}):`);
+        lines.push(`  Flight cost: €${fmt(best.flight_cost)}  ·  Hotel (7n): €${fmt(best.hotel_cost)}`);
+        lines.push(`  Total: €${fmt(best.total)}  ·  Gap vs budget: €${fmt(best.gap)}`);
+    }
+
+    const flights = results.flight?.decision?.ranked_flights || results.flight_iter1?.decision?.ranked_flights || [];
+    if (flights.length) {
+        lines.push('\nTop flights:');
+        flights.slice(0,3).forEach(f => lines.push(
+            `  • ${f.origin ?? '?'} → ${f.destination ?? '?'}`
+            + (f.price || f.price_eur ? `  €${fmt(f.price ?? f.price_eur)}` : '')
+            + (f.airline ? `  · ${f.airline}` : '')
+            + (f.stops !== undefined ? `  · ${f.stops} stop${f.stops !== 1 ? 's' : ''}` : '')
+        ));
+    }
+
+    const hotels = results.hotel?.ranked_hotels || results.hotel?.decision?.ranked_hotels || [];
+    if (hotels.length) {
+        lines.push('\nTop hotels:');
+        hotels.slice(0,3).forEach(h => lines.push(
+            `  • ${h.hotel_name ?? h.name ?? '?'}`
+            + (h.price_per_night_eur || h.price_per_night ? `  €${fmt(h.price_per_night_eur ?? h.price_per_night)}/night` : '')
+            + (h.rating ? `  ★ ${h.rating}` : '')
+            + (h.within_budget === false ? '  ⚠ over budget' : '')
+        ));
+        if (results.hotel?.recommendation) {
+            lines.push(`  ↳ ${results.hotel.recommendation}`);
+        }
+    }
+
+    const activities = results.activity?.decision?.selected_activities || [];
+    if (activities.length) {
+        lines.push('\nSuggested activities:');
+        activities.slice(0,5).forEach(a => lines.push(
+            `  • ${a.title ?? '?'}${a.why_selected ? `  — ${a.why_selected}` : ''}`
+        ));
+    }
+
+    if (loop.length) {
+        lines.push('\nA2A loop: ' + loop.map(e => `${e.agent}:${e.state ?? '?'}`).join('  '));
+    }
+
+    document.getElementById('response-block').textContent =
+        lines.length ? lines.join('\n') : JSON.stringify(itinerary, null, 2);
+
+    document.getElementById('response-section').style.display = '';
+}
+
+function renderFlights(itinerary) {
+    const results = itinerary.agent_results || {};
+    let flights = [];
+
+    for (const key of ['flight_iter1','flight_iter2','flight_iter3','flight']) {
+        const f = results[key]?.decision?.ranked_flights || [];
+        if (f.length && f[0].airline && f[0].airline !== '...') {
+            flights = f;
+            break;
+        }
+    }
+
+    if (!flights.length) flights = itinerary.mcp_data?.flights || [];
+    if (!flights.length) return;
+
+    const grid = document.getElementById('flights-grid');
+    grid.innerHTML = flights.slice(0,6).map(f => `
+        <div class="card">
+            <h3>${esc(f.origin ?? f.departure_airport ?? '?')} → ${esc(f.destination ?? f.arrival_airport ?? '?')}</h3>
+            ${f.airline ? `<p>✈ ${esc(f.airline)}</p>` : ''}
+            ${f.date ? `<p>📅 ${esc(f.date)}</p>` : ''}
+            ${(f.departure_time || f.departure) ? `<p>🕐 ${esc(f.departure_time || f.departure)} → ${esc(f.arrival_time || f.arrival)}</p>` : ''}
+            ${f.duration_hours !== undefined ? `<p>⏱ ${f.duration_hours}h · ${f.stops} stop${f.stops !== 1 ? 's' : ''}</p>` : ''}
+            ${f.class ? `<p>Class: ${esc(f.class)}</p>` : ''}
+            ${(f.price || f.price_eur) ? `<div class="price">€${fmt(f.price ?? f.price_eur)}</div>` : ''}
+        </div>`).join('');
+
+    document.getElementById('flights-section').style.display = '';
+}
+
+function renderHotels(itinerary) {
+    const results = itinerary.agent_results || {};
+    const hotels  = results.hotel?.ranked_hotels
+        || results.hotel?.decision?.ranked_hotels
+        || itinerary.mcp_data?.hotels || [];
+
+    if (!hotels.length) return;
+
+    const grid = document.getElementById('hotels-grid');
+    grid.innerHTML = hotels.slice(0,6).map(h => {
+        const over    = h.within_budget === false;
+        const ppn     = h.price_per_night_eur ?? h.price_per_night ?? h.price;
+        const total   = h.total_price ?? (ppn ? ppn * 7 : null);
+        const amenStr = (h.amenities || []).join(', ');
+
+        return `
+        <div class="card" style="${over ? 'border-left-color:var(--orange)' : ''}">
+            <h3>${esc(h.hotel_name ?? h.name ?? '?')}</h3>
+            ${h.location ? `<p>📍 ${esc(h.location)}</p>` : ''}
+            ${h.rating ? `<p>★ ${esc(h.rating)}  ${h.stars ? '⭐'.repeat(Math.min(h.stars,5)) : ''}</p>` : ''}
+            ${amenStr ? `<p style="font-size:0.82em;color:#888">${esc(amenStr)}</p>` : ''}
+            ${over ? `<p style="color:var(--orange);font-weight:600">⚠ Over budget</p>` : ''}
+            ${h.why_ranked ? `<p style="font-size:0.82em;color:var(--muted);margin-top:6px">${esc(h.why_ranked)}</p>` : ''}
+            ${ppn ? `<div class="price">€${fmt(ppn)}<span style="font-size:0.65em;font-weight:400">/night</span>${total ? `<span style="font-size:0.65em;color:#666"> · €${fmt(total)} total</span>` : ''}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    document.getElementById('hotels-section').style.display = '';
+}
+
+function renderActivities(itinerary) {
+    const results    = itinerary.agent_results || {};
+    const activities = results.activity?.decision?.selected_activities
+        || itinerary.mcp_data?.activities || [];
+
+    if (!activities.length) return;
+
+    const grid = document.getElementById('activities-grid');
+    grid.innerHTML = activities.slice(0,6).map(a => `
+        <div class="card">
+            <h3>${esc(a.title ?? '?')}</h3>
+            ${a.description ? `<p>${esc(a.description)}</p>` : ''}
+            ${a.why_selected ? `<p>${esc(a.why_selected)}</p>` : ''}
+            ${a.fit_score !== undefined ? `<p style="color:var(--blue);font-weight:600;margin-top:8px">Fit: ${Math.round(a.fit_score * 100)}%</p>` : ''}
+            ${a.weather_suitable === false ? `<p style="color:var(--orange);font-size:0.85em">⚠ Not ideal weather</p>` : ''}
+        </div>`).join('');
+
+    document.getElementById('activities-section').style.display = '';
+}
+
+function renderWeather(itinerary) {
+    const wData   = itinerary.mcp_data?.weather || itinerary.agent_results?.weather;
+    const wAgent  = itinerary.agent_results?.weather;
+    if (!wData && !wAgent) return;
+
+    const days     = wData?.days || [];
+    const badDays  = new Set(wAgent?.bad_days || []);
+    const goodDays = new Set(wAgent?.good_days || []);
+    const summary  = wData?.summary || wAgent?.summary || '';
+    const tips     = wAgent?.packing_tips || [];
+
+    if (summary) {
+        document.getElementById('weather-summary-block').textContent =
+            `📍 ${wData?.city ?? 'Destination'} — ${summary}`;
+    }
+
+    if (days.length) {
+        const grid = document.getElementById('weather-grid');
+        grid.innerHTML = days.map(d => {
+            const isBad  = badDays.has(d.date);
+            const isGood = goodDays.has(d.date);
+
+            return `
+            <div class="weather-card ${isBad ? 'bad' : isGood ? 'good' : ''}">
+                <div class="icon">${esc(d.icon || '')}</div>
+                <div class="dow">${esc(d.day_of_week ?? '')}</div>
+                <div class="date">${esc(d.date)}</div>
+                <div class="cond">${esc(d.condition)}</div>
+                <div class="temp">${esc(d.temp_high_c)}° / ${esc(d.temp_low_c)}°C</div>
+                ${d.precipitation_mm ? `<div style="font-size:0.8em;color:#5d8fcf">💧 ${d.precipitation_mm}mm</div>` : ''}
+            </div>`;
+        }).join('');
+    }
+
+    if (tips.length) {
+        document.getElementById('weather-tips').innerHTML =
+            '<strong>Packing tips:</strong> ' + tips.map(t => esc(t)).join(' · ');
+    }
+
+    document.getElementById('weather-section').style.display = '';
+}
+</script>
+</body>
+</html>

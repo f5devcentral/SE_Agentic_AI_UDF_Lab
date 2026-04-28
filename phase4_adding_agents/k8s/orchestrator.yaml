@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+    spec:
+      containers:
+        - name: orchestrator
+          image: 10.1.1.7:30500/ai/orchestrator:v0.6
+          imagePullPolicy: Always
+          env:
+            - name: OLLAMA_URL
+              value: "http://ollama:11434"
+            - name: LLM_MODEL
+              value: "llama3.2:3b"
+            - name: LLM_MAX_TOKENS
+              value: "12288"
+            - name: RAG_URL
+              value: "http://rag-service:8000"
+            - name: TRAVEL_AGENT_URL
+              value: "http://travel-agent:8004"
+            - name: FLIGHT_AGENT_URL
+              value: "http://flight-agent:8002"
+            - name: HOTEL_AGENT_URL
+              value: "http://hotel-agent:8003"
+            - name: ACTIVITY_AGENT_URL
+              value: "http://activity-agent:8004"
+            - name: WEATHER_AGENT_URL
+              value: "http://weather-agent:8005"
+            - name: TRAVEL_MCP_URL
+              value: "http://travel-mcp:8000/mcp"
+            - name: WEATHER_MCP_URL
+              value: "http://weather-mcp:8001/mcp"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: MAX_ITERATIONS
+              value: "3"
+            - name: F5GUARDRAILS_ENABLED
+              value: "true"
+            - name: F5GUARDRAILS_URL
+              value: "https://www.us1.calypsoai.app"
+            - name: F5GUARDRAILS_PROJECT
+              value: "019d6d65-8fc4-707a-b690-428e0bfadf8d"
+            - name: F5GUARDRAILS_TOKEN
+              value: "MDE5ZDZkNjUtYTIwZS03MGViLTlhYzItYWEwMmY0NDc1NWEx/YKqhTNCbXOZ6HqX4AipgKI69FSP5SbaOmUuHiZzApD9n8isk9ehL3nbfpjorKpoqlE5QvfN0jgQ3g"
+          ports:
+            - containerPort: 9000
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+spec:
+  type: NodePort
+  selector:
+    app: orchestrator
+  ports:
+    - port: 9000
+      targetPort: 9000
+      nodePort: 30990
+      protocol: TCP
+
