@@ -1,0 +1,275 @@
+"""
+services/hotels-agent/app.py  — A2A-compliant hotel agent
+
+Transport:   HTTP POST, Content-Type: application/json
+Protocol:    JSON-RPC 2.0  (A2A spec)
+A2A entry:   POST /a2a  (tasks/send, tasks/get, tasks/cancel)
+Agent card:  GET  /.well-known/agent.json
+Health:      GET  /health
+"""
+
+import json
+import logging
+import os
+from typing import Any, Dict, List
+
+import requests
+from flask import Flask, jsonify, request
+
+from shared.a2a_protocol import (
+    A2AMessage,
+    Artifact,
+    DataPart,
+    ERR_INVALID_PARAMS,
+    ERR_METHOD_NOT_FOUND,
+    Task,
+    TaskStatus,
+    build_agent_card,
+    jsonrpc_error,
+    jsonrpc_success,
+    parse_jsonrpc,
+)
+from shared.logging import configure_logging
+from shared.metrics import register_metrics
+from shared.tracing import init_tracing, inject_trace_headers
+import shared.tracing as _tracing
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+SERVICE_NAME = "hotel-agent"
+AGENT_PORT = int(os.getenv("AGENT_PORT", "8003"))
+AGENT_URL = os.getenv("AGENT_URL", f"http://hotel-agent:{AGENT_PORT}")
+
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:1b")
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+
+# ---------------------------------------------------------------------------
+# App bootstrap
+# ---------------------------------------------------------------------------
+
+app = Flask(__name__)
+configure_logging(SERVICE_NAME)
+meter = register_metrics(app, SERVICE_NAME)
+init_tracing(app, SERVICE_NAME)
+
+logger = logging.getLogger(SERVICE_NAME)
+logger.setLevel(logging.INFO)
+
+# Keep the module-level `tracer` reference that the original code used
+tracer = _tracing.get_tracer(SERVICE_NAME)
+
+# ---------------------------------------------------------------------------
+# LLM
+# ---------------------------------------------------------------------------
+
+def ollama_chat(system_prompt: str, user_prompt: str) -> str:
+    headers = inject_trace_headers()
+    with tracer.start_as_current_span("ollama_chat") as span:
+        span.set_attribute("llm.model", LLM_MODEL)
+        span.set_attribute("llm.system_prompt.length", len(system_prompt))
+        span.set_attribute("llm.user_prompt.length", len(user_prompt))
+        resp = requests.post(
+            f"{OLLAMA_URL}/api/chat",
+            json={
+                "model": LLM_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "stream": False,
+                "format": "json",
+            },
+            headers=headers,
+            timeout=OLLAMA_TIMEOUT,
+        )
+        resp.raise_for_status()
+        content = resp.json()["message"]["content"]
+        span.set_attribute("llm.response.length", len(content))
+        return content
+
+
+# ---------------------------------------------------------------------------
+# Core reasoning
+# ---------------------------------------------------------------------------
+
+def _run_hotel_reasoning(task_payload: Dict[str, Any]) -> Dict[str, Any]:
+    intent = task_payload.get("intent", "rank_hotels")
+    payload = task_payload.get("payload", {})
+    mcp_results = task_payload.get("mcp_results", {})
+    user_context = task_payload.get("user_context", {})
+
+    hotels: List[Dict[str, Any]] = mcp_results.get("hotels", [])
+    budget = user_context.get("budget_eur") or user_context.get("budget")
+    preferences = user_context.get("preferences") or user_context.get("preferences_description")
+
+    logger.info(
+        "HOTEL TASK intent=%s hotels_count=%d budget=%s",
+        intent, len(hotels), budget,
+    )
+
+    with tracer.start_as_current_span("hotel_agent_reason") as span:
+        span.set_attribute("intent", intent or "unknown")
+        span.set_attribute("hotels.count", len(hotels))
+        span.set_attribute("has_budget", budget is not None)
+
+        system_prompt = (
+            "You are a hotel planning expert.\n\n"
+            "Input JSON contains:\n"
+            "  hotels: list of hotel options with price, rating, location etc.\n"
+            "  budget: overall trip budget in user currency (may be null)\n"
+            "  preferences: free-text preferences.\n\n"
+            "Tasks:\n"
+            "1) Rank hotels by suitability (cost, rating, location, preferences).\n"
+            "2) For each ranked hotel, add fields: score (0-1), within_budget (true/false).\n"
+            "3) If all reasonable hotels are too expensive, propose a new intent.\n"
+            "4) If more info is required, set 'status' accordingly.\n\n"
+            "Respond strictly as JSON:\n"
+            "{\n"
+            '  "ranked_hotels": [...],\n'
+            '  "recommendation": "...",\n'
+            '  "new_intents": [...],\n'
+            '  "status": "completed | needs_a2a | needs_mcp | error",\n'
+            '  "a2a_request": {"target_agent": "...", "message": {...}}\n'
+            "}"
+        )
+        user_payload = json.dumps({"hotels": hotels, "budget": budget, "preferences": preferences})
+
+        try:
+            llm_raw = ollama_chat(system_prompt, user_payload)
+            decision = json.loads(llm_raw)
+            status = decision.get("status", "completed")
+            span.set_attribute("status", status)
+            span.set_attribute("ranked_hotels.count", len(decision.get("ranked_hotels", [])))
+        except json.JSONDecodeError:
+            logger.warning("hotel-agent JSON decode failed, using fallback")
+            span.set_status("error", "JSON decode failed")
+            decision = {
+                "ranked_hotels": hotels,
+                "recommendation": "Fallback: LLM response was not valid JSON.",
+                "new_intents": [],
+                "status": "error",
+            }
+
+        logger.info("HOTEL DECISION: %s", json.dumps(decision, indent=2))
+        return decision
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
+@app.route("/.well-known/agent.json", methods=["GET"])
+def agent_card():
+    card = build_agent_card(
+        name="hotel-agent",
+        description=(
+            "LLM hotel specialist that selects and adjusts hotel options "
+            "based on budget and preferences."
+        ),
+        url=f"{AGENT_URL}/a2a",
+        version="3.0.0",
+        skills=[
+            {
+                "id": "rank_hotels",
+                "name": "Rank Hotels",
+                "description": "Rank and recommend hotel options given budget and preferences.",
+                "inputModes": ["application/json"],
+                "outputModes": ["application/json"],
+                "tags": ["hotels", "travel"],
+            }
+        ],
+    )
+    return jsonify(card), 200
+
+
+@app.route("/a2a", methods=["POST"])
+def a2a_endpoint():
+    raw = request.get_json(force=True) or {}
+
+    try:
+        req_id, method, params = parse_jsonrpc(raw)
+    except ValueError as exc:
+        return jsonify(jsonrpc_error(ERR_INVALID_PARAMS, str(exc), raw.get("id"))), 400
+
+    if method == "tasks/send":
+        return _handle_tasks_send(req_id, params)
+    if method in ("tasks/get", "tasks/cancel"):
+        return jsonify(jsonrpc_error(-32001, "Stateless agent — task not persisted", req_id)), 200
+
+    return jsonify(jsonrpc_error(ERR_METHOD_NOT_FOUND, f"Unknown method: {method}", req_id)), 200
+
+
+def _handle_tasks_send(req_id, params: Dict[str, Any]):
+    with tracer.start_as_current_span("hotel_agent_tasks_send") as span:
+        task_id = params.get("id", "unknown")
+        session_id = params.get("sessionId", "unknown")
+        message = params.get("message", {})
+
+        task_payload = _extract_data_part(message) or {}
+        logger.info("A2A INBOUND HOTEL task_id=%s intent=%s", task_id, task_payload.get("intent"))
+        span.set_attribute("task.id", task_id)
+
+        decision = _run_hotel_reasoning(task_payload)
+        state = "completed" if decision.get("status") not in ("error",) else "failed"
+
+        artifact = Artifact(
+            name="hotel_result",
+            parts=[DataPart(decision).to_dict()],
+        )
+        status_msg = A2AMessage.agent_text(
+            f"Hotel reasoning complete. Status: {decision.get('status')}"
+        )
+        task = Task(
+            id=task_id,
+            session_id=session_id,
+            status=TaskStatus(state=state, message=status_msg.to_dict()),
+            artifacts=[artifact.to_dict()],
+            metadata={"agent": SERVICE_NAME, "model": LLM_MODEL},
+        )
+        return jsonify(jsonrpc_success(task.to_dict(), req_id)), 200
+
+
+def _extract_data_part(message: Dict[str, Any]) -> Dict[str, Any] | None:
+    for part in message.get("parts", []):
+        if part.get("type") == "data":
+            return part.get("data")
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Legacy compat routes
+# ---------------------------------------------------------------------------
+
+@app.route("/reason", methods=["POST"])
+def reason():
+    data = request.get_json(force=True) or {}
+    fake_params = {
+        "id": "legacy-" + os.urandom(4).hex(),
+        "sessionId": "legacy",
+        "message": {"role": "user", "parts": [{"type": "data", "data": data}]},
+    }
+    return _handle_tasks_send("legacy", fake_params)
+
+
+@app.route("/a2a/message", methods=["POST"])
+def a2a_message_compat():
+    data = request.get_json(force=True) or {}
+    task_id = data.get("task_id", "compat-" + os.urandom(4).hex())
+    fake_params = {
+        "id": task_id,
+        "sessionId": data.get("conversation_id", task_id),
+        "message": {"role": "user", "parts": [{"type": "data", "data": data}]},
+    }
+    return _handle_tasks_send("legacy", fake_params)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=AGENT_PORT, debug=False)

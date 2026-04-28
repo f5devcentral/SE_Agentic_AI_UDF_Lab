@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator-direct
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orchestrator-direct
+  template:
+    metadata:
+      labels:
+        app: orchestrator-direct
+    spec:
+      containers:
+        - name: orchestrator-direct
+          image: 10.1.1.7:30500/ai/orchestrator-direct:v0.6
+          imagePullPolicy: Always
+          env:
+            - name: OLLAMA_URL
+              value: "http://ollama:11434"
+            - name: LLM_MODEL
+              value: "llama3.2:3b"
+            - name: LLM_MAX_TOKENS
+              value: "4096"
+            - name: RAG_URL
+              value: "http://rag-service:8000"
+            - name: TRAVEL_MCP_URL
+              value: "http://travel-mcp:8000/mcp"
+            - name: WEATHER_MCP_URL
+              value: "http://weather-mcp:8001/mcp"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: MAX_ITERATIONS
+              value: "3"
+            - name: F5GUARDRAILS_ENABLED
+              value: "false"
+            - name: F5GUARDRAILS_URL
+              value: "https://www.us1.calypsoai.app"
+            - name: F5GUARDRAILS_PROJECT
+              value: "019d6d65-8fc4-707a-b690-428e0bfadf8d"
+            - name: F5GUARDRAILS_TOKEN
+              value: "MDE5ZDZkNjUtYTIwZS03MGViLTlhYzItYWEwMmY0NDc1NWEx/YKqhTNCbXOZ6HqX4AipgKI69FSP5SbaOmUuHiZzApD9n8isk9ehL3nbfpjorKpoqlE5QvfN0jgQ3g"
+            - name: RAG_DOC_CHARS
+              value: "2000"
+          ports:
+            - containerPort: 9001
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-direct
+spec:
+  type: NodePort
+  selector:
+    app: orchestrator-direct
+  ports:
+    - port: 9001
+      targetPort: 9001
+      nodePort: 30998
+      protocol: TCP
+

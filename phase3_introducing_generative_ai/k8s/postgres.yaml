@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+type: Opaque
+data:
+  POSTGRES_PASSWORD: cG9zdGdyZXNwYXNz  # postgrespass
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: pgvector/pgvector:pg17  # Official pgvector
+        env:
+        - name: POSTGRES_DB
+          value: ragdb
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: postgres-data
+        - mountPath: /docker-entrypoint-initdb.d
+          name: db-init
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "postgres", "-d", "ragdb"]
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: db-init
+        configMap:
+          name: db-init-config
+          defaultMode: 0644
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-init-config
+  namespace: demo-travel
+data:
+  01-init.sql: |
+    -- Create DB if not exists
+    DO $$
+    BEGIN
+       IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'ragdb') THEN
+          CREATE DATABASE ragdb;
+       END IF;
+    END
+    $$;
+
+    \c ragdb;
+
+    -- Enable pgvector
+    CREATE EXTENSION IF NOT EXISTS vector;
+
+    -- Force clean schema (lab mode)
+    DROP TABLE IF EXISTS documents;
+
+    CREATE TABLE documents (
+        id BIGSERIAL PRIMARY KEY,
+        content TEXT NOT NULL,
+        embedding VECTOR(768),
+        metadata JSONB
+    );
+
+    -- Recreate index
+    DROP INDEX IF EXISTS documents_embedding_idx;
+
+    CREATE INDEX documents_embedding_idx
+    ON documents
+    USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100);
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+

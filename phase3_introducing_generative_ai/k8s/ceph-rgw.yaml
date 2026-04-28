@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ceph-rgw-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ceph-rgw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ceph-rgw
+  template:
+    metadata:
+      labels:
+        app: ceph-rgw
+    spec:
+      containers:
+        - name: ceph-rgw
+          image: quay.io/ceph/daemon:latest-quincy
+          args:
+            - demo
+          env:
+            - name: RGW_FRONTEND_PORT
+              value: "8080"
+            - name: MON_IP
+              value: "127.0.0.1"
+            - name: CEPH_DEMO_UID
+              value: "demo"
+            - name: CEPH_DEMO_ACCESS_KEY
+              value: "demoaccess"
+            - name: CEPH_DEMO_SECRET_KEY
+              value: "demosecret"
+            - name: CEPH_DEMO_BUCKET
+              value: "travel-data"
+            - name: RGW_NAME
+              value: "rgw.demo"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: /var/lib/ceph
+              name: ceph-rgw-data
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: ceph-rgw-data
+          persistentVolumeClaim:
+            claimName: ceph-rgw-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-rgw
+spec:
+  type: NodePort
+  selector:
+    app: ceph-rgw
+  ports:
+    - name: s3
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080
+      protocol: TCP
+
