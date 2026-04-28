@@ -159,7 +159,7 @@ curl -X POST http://<BIGIP_VIP>/plan \
 ```
 
 **Without mitigations — expected result:**  
-The orchestrator forwards the prompt to the LLM. Depending on model alignment, the LLM may or may not comply — `llama3.2:1b` is more susceptible than `mistral:7b`. The OTel trace shows the full prompt reaching the `ollama_chat` span.
+The orchestrator forwards the prompt to the LLM. Depending on model alignment, the LLM may or may not comply — `llama3.2:1b` (agent reasoning) is more susceptible than `llama3.2:3b` (orchestrator). The OTel trace shows the full prompt reaching the `ollama_chat` span.
 
 **With BIG-IP iRule — expected result:**  
 `HTTP 403 Request blocked: malicious input detected`. The string `"IGNORE ALL PREVIOUS INSTRUCTIONS"` matches the iRule pattern. The prompt never reaches the orchestrator. Confirm in the BIG-IP Request logs.
