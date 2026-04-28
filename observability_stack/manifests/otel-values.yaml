@@ -1,0 +1,48 @@
+mode: deployment
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: latest  
+
+service:
+  type: NodePort
+
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    nodePort: 30431
+    protocol: TCP
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  exporters:
+    prometheus:
+      endpoint: "0.0.0.0:8889"
+
+    otlp_grpc/tempo:
+      endpoint: tempo:4317
+      tls:
+        insecure: true
+
+    debug:
+      verbosity: detailed
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        exporters: [otlp_grpc/tempo, debug]
+
+      metrics:
+        receivers: [otlp]
+        exporters: [prometheus]
+

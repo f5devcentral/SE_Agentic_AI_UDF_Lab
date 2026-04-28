@@ -1,0 +1,130 @@
+openapi: 3.1.0
+info:
+  title: Frontend Service API
+  description: |
+    The travel agency frontend. Serves an HTML search UI and orchestrates calls
+    to the Flights service, Hotels service, and PostgreSQL activities database.
+
+    The primary interface is a browser-facing HTML application. The two documented
+    endpoints below are the only HTTP endpoints exposed by this service.
+  version: 1.0.0
+  contact:
+    name: Demo Travel App
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Search
+    description: Travel search UI
+  - name: Health
+    description: Service health
+
+paths:
+  /:
+    get:
+      tags: [Search]
+      summary: Render the search form
+      description: |
+        Returns the HTML page containing the empty travel search form.
+        No parameters are required.
+      operationId: getSearchForm
+      responses:
+        "200":
+          description: HTML page with the search form
+          content:
+            text/html:
+              schema:
+                type: string
+
+    post:
+      tags: [Search]
+      summary: Submit a travel search and render results
+      description: |
+        Accepts a form submission with origin, destination, and travel dates.
+        Orchestrates parallel calls to:
+        - **Flights service** (`GET /flights?origin&destination&date`)
+        - **Hotels service** (`GET /hotels?city&checkin&checkout`)
+        - **PostgreSQL** (`SELECT * FROM activities WHERE city = destination`)
+
+        Returns the same HTML page with the search form pre-filled and three
+        result sections rendered below it (Flights, Hotels, Activities).
+
+        If a downstream service is unreachable, that section renders empty
+        rather than returning an error — the page is always returned with HTTP 200.
+      operationId: submitSearch
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: |
+            HTML page with the search form pre-filled and results rendered.
+            Note: downstream errors (flights/hotels unavailable, DB empty) still
+            return 200 — check the rendered sections for content.
+          content:
+            text/html:
+              schema:
+                type: string
+        "500":
+          description: |
+            Unhandled server error (e.g. template rendering failure).
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthFrontend
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+components:
+  schemas:
+    SearchRequest:
+      type: object
+      required:
+        - origin
+        - destination
+        - departure_date
+        - return_date
+      properties:
+        origin:
+          type: string
+          description: Departure city name
+          example: Paris
+        destination:
+          type: string
+          description: Arrival / destination city name (used for hotels and activities lookup)
+          example: Barcelona
+        departure_date:
+          type: string
+          format: date
+          description: Outbound flight date, passed as `date` to the Flights service and `checkin` to the Hotels service
+          example: "2025-06-15"
+        return_date:
+          type: string
+          format: date
+          description: Return date, passed as `checkout` to the Hotels service to calculate total stay cost
+          example: "2025-06-20"
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok

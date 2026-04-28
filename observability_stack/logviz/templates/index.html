@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A2A Log Visualiser</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #2c3e50; }
+
+        header {
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            color: white; padding: 28px 20px; text-align: center;
+        }
+        header h1 { font-size: 2em; margin-bottom: 6px; }
+        header p  { opacity: 0.85; font-size: 1em; }
+
+        .container { max-width: 1300px; margin: 0 auto; padding: 30px 20px 60px; }
+
+        /* ── Input card ──────────────────────────────────────────────────── */
+        .input-card {
+            background: white; border-radius: 12px; padding: 28px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1); margin-bottom: 28px;
+        }
+        .input-card h2 { color: #1a73e8; margin-bottom: 16px; font-size: 1.15em; }
+
+        .log-areas {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .log-field label {
+            display: block; font-size: 0.82em; font-weight: 600;
+            color: #555; text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .log-field textarea {
+            width: 100%; height: 180px; padding: 10px 12px;
+            border: 1px solid #ddd; border-radius: 8px;
+            font-family: 'Courier New', monospace; font-size: 0.78em;
+            resize: vertical; transition: border 0.2s; line-height: 1.4;
+        }
+        .log-field textarea:focus {
+            outline: none; border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+        }
+        .log-field textarea::placeholder { color: #bbb; font-size: 0.9em; }
+
+        .btn-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+        .btn-analyze {
+            background: #1a73e8; color: white; border: none;
+            padding: 11px 30px; border-radius: 8px; font-size: 1em;
+            font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-analyze:hover:not(:disabled) { background: #1558b0; }
+        .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-clear {
+            background: white; color: #666; border: 1px solid #ddd;
+            padding: 10px 22px; border-radius: 8px; font-size: 0.9em;
+            cursor: pointer; transition: border-color 0.2s;
+        }
+        .btn-clear:hover { border-color: #999; }
+
+        /* Loading */
+        #loading {
+            display: none; align-items: center; gap: 10px;
+            color: #666; font-size: 0.9em;
+        }
+        #loading.active { display: flex; }
+        .spinner {
+            width: 18px; height: 18px; border: 2px solid #ccd6e8;
+            border-top-color: #1a73e8; border-radius: 50%;
+            animation: spin 0.7s linear infinite; flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Errors */
+        .error-box {
+            display: none; color: #e65100; font-size: 0.9em;
+            margin-top: 12px; padding: 10px 14px;
+            background: #fff3e0; border-radius: 6px; border-left: 3px solid #e65100;
+        }
+        .error-box.visible { display: block; }
+
+        /* ── Stats bar ───────────────────────────────────────────────────── */
+        #stats-bar {
+            display: none; flex-wrap: wrap; gap: 8px;
+            margin-bottom: 24px; font-size: 0.8em; font-family: monospace;
+        }
+        #stats-bar.visible { display: flex; }
+        .stat-chip {
+            background: #e8f0fe; border: 1px solid #a8c0f0;
+            border-radius: 4px; padding: 4px 12px; color: #1a73e8; font-weight: 600;
+        }
+        .stat-chip.plain {
+            background: #f0f4f8; border-color: #d0dae8; color: #555; font-weight: 400;
+        }
+
+        /* ── Diagram section ─────────────────────────────────────────────── */
+        #diagram-section { display: none; margin-bottom: 32px; }
+        #diagram-section.visible { display: block; }
+
+        .section-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 14px;
+        }
+        .section-header h3 {
+            font-size: 1.3em; font-weight: 700; color: #1a73e8;
+        }
+
+        .btn-copy {
+            background: white; border: 1px solid #ddd;
+            padding: 7px 16px; border-radius: 6px;
+            font-size: 0.82em; cursor: pointer; transition: border-color 0.2s;
+            color: #444;
+        }
+        .btn-copy:hover { border-color: #1a73e8; color: #1a73e8; }
+        .btn-copy.copied { border-color: #27ae60; color: #27ae60; }
+
+        .diagram-card {
+            background: white; border-radius: 10px; padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #1a73e8;
+            overflow-x: auto;
+        }
+        #mermaid-output { min-height: 200px; }
+
+        .mermaid-raw-wrap {
+            margin-top: 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .mermaid-raw-wrap summary {
+            cursor: pointer; padding: 10px 0;
+            font-size: 0.82em; color: #888;
+            user-select: none;
+        }
+        .mermaid-raw-wrap summary:hover { color: #1a73e8; }
+        #mermaid-raw {
+            margin-top: 8px; background: #f8f9fa; border-radius: 6px;
+            padding: 14px; font-family: monospace; font-size: 0.76em;
+            white-space: pre; overflow-x: auto; color: #333;
+            border: 1px solid #e8e8e8;
+        }
+
+        /* ── Token table ─────────────────────────────────────────────────── */
+        #token-section { display: none; margin-bottom: 32px; }
+        #token-section.visible { display: block; }
+
+        .token-card {
+            background: white; border-radius: 10px; padding: 22px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #0ea5e9; overflow-x: auto;
+        }
+
+        #token-table {
+            width: 100%; border-collapse: collapse; font-size: 0.86em;
+        }
+        #token-table th {
+            text-align: left; padding: 8px 12px;
+            border-bottom: 2px solid #e0e8f0;
+            color: #555; font-weight: 600;
+            text-transform: uppercase; font-size: 0.78em; letter-spacing: 0.4px;
+        }
+        #token-table td {
+            padding: 7px 12px; border-bottom: 1px solid #f0f4f8; color: #2c3e50;
+        }
+        #token-table tr:last-child td {
+            border-bottom: none; font-weight: 700;
+            background: #f0f4f8; color: #1a73e8;
+        }
+        #token-table tr:hover:not(:last-child) td { background: #f8faff; }
+
+        .dir-send    { color: #1a73e8; font-weight: 600; }
+        .dir-recv    { color: #27ae60; font-weight: 600; }
+        .dir-llm_in  { color: #7c3aed; font-weight: 600; }
+        .dir-llm_out { color: #e65100; font-weight: 600; }
+
+        .tok-bar-wrap {
+            background: #f0f0f0; border-radius: 3px; height: 6px;
+            width: 80px; display: inline-block; vertical-align: middle;
+            margin-left: 8px;
+        }
+        .tok-bar {
+            height: 100%; border-radius: 3px;
+            background: linear-gradient(90deg, #1a73e8, #0ea5e9);
+        }
+
+        /* ── Events debug ────────────────────────────────────────────────── */
+        #events-section { display: none; margin-bottom: 32px; }
+        #events-section.visible { display: block; }
+
+        .events-card {
+            background: white; border-radius: 10px; padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #27ae60;
+        }
+        .event-list {
+            display: flex; flex-direction: column; gap: 6px; margin-top: 12px;
+        }
+        .event-item {
+            display: flex; gap: 10px; align-items: flex-start;
+            font-size: 0.8em; padding: 6px 10px;
+            background: #f8faff; border-radius: 5px;
+        }
+        .ev-kind {
+            font-family: monospace; font-weight: 600; color: #1a73e8;
+            min-width: 120px; flex-shrink: 0;
+        }
+        .ev-svc  { color: #888; min-width: 100px; flex-shrink: 0; font-family: monospace; }
+        .ev-det  { color: #444; }
+
+        @media (max-width: 768px) {
+            .log-areas { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🔍 A2A Log Visualiser</h1>
+    <p>Paste <code>kubectl logs</code> output from any combination of services — get a sequence diagram and token breakdown instantly</p>
+</header>
+
+<div class="container">
+
+    <!-- ── Input ──────────────────────────────────────────────────────────── -->
+    <div class="input-card">
+        <h2>📋 Paste service logs</h2>
+        <p style="font-size:0.88em;color:#666;margin-bottom:18px;">
+            Paste logs from one or more services below. You can mix all services into a single box
+            or use the dedicated areas — the parser auto-detects the service from each log line.
+        </p>
+
+        <div class="log-areas">
+            <div class="log-field">
+                <label>Orchestrator logs</label>
+                <textarea id="log-orchestrator"
+                    placeholder="2026-04-02 14:37:12,361 | orchestrator | INFO | ┌─ CONTEXT EXTRACTION …"></textarea>
+            </div>
+            <div class="log-field">
+                <label>Flight Agent logs</label>
+                <textarea id="log-flight"
+                    placeholder="2026-04-02 14:37:13,528 | flight-agent | INFO | ┌─ FLIGHT AGENT · TASK RECEIVED …"></textarea>
+            </div>
+            <div class="log-field">
+                <label>Hotel Agent logs</label>
+                <textarea id="log-hotel"
+                    placeholder="2026-04-02 14:37:38,760 | hotel-agent | INFO | ┌─ HOTEL AGENT · TASK RECEIVED …"></textarea>
+            </div>
+            <div class="log-field">
+                <label>Activity Agent logs</label>
+                <textarea id="log-activity"
+                    placeholder="… | activity-agent | INFO | ┌─ ACTIVITY AGENT · TASK RECEIVED …"></textarea>
+            </div>
+            <div class="log-field">
+                <label>Weather Agent logs</label>
+                <textarea id="log-weather"
+                    placeholder="… | weather-agent | INFO | ┌─ WEATHER AGENT · TASK RECEIVED …"></textarea>
+            </div>
+            <div class="log-field">
+                <label>Travel Agent logs</label>
+                <textarea id="log-travel"
+                    placeholder="… | travel-agent | INFO | ┌─ TRAVEL AGENT · TASK RECEIVED …"></textarea>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-analyze" id="analyze-btn" onclick="analyze()">
+                ⚡ Analyze &amp; Visualise
+            </button>
+            <button class="btn-clear" onclick="clearAll()">Clear all</button>
+            <div id="loading">
+                <div class="spinner"></div>
+                <span>Parsing logs and generating diagram…</span>
+            </div>
+        </div>
+
+        <div class="error-box" id="error-box"></div>
+    </div>
+
+    <!-- ── Stats bar ──────────────────────────────────────────────────────── -->
+    <div id="stats-bar"></div>
+
+    <!-- ── Sequence diagram ───────────────────────────────────────────────── -->
+    <div id="diagram-section">
+        <div class="section-header">
+            <h3>📊 Sequence Diagram</h3>
+            <button class="btn-copy" id="copy-mermaid-btn" onclick="copyMermaid()">
+                Copy Mermaid source
+            </button>
+        </div>
+        <div class="diagram-card">
+            <div id="mermaid-output"></div>
+            <details class="mermaid-raw-wrap">
+                <summary>Show raw Mermaid source</summary>
+                <pre id="mermaid-raw"></pre>
+            </details>
+        </div>
+    </div>
+
+    <!-- ── Token table ────────────────────────────────────────────────────── -->
+    <div id="token-section">
+        <div class="section-header">
+            <h3>🪙 Token Accounting</h3>
+            <button class="btn-copy" id="copy-csv-btn" onclick="copyCSV()">
+                Copy as CSV
+            </button>
+        </div>
+        <div class="token-card">
+            <table id="token-table">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Call</th>
+                        <th>Direction</th>
+                        <th style="text-align:right">Tokens</th>
+                        <th>Visual</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody id="token-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── Parsed events (debug) ──────────────────────────────────────────── -->
+    <div id="events-section">
+        <div class="section-header">
+            <h3>🔎 Parsed Events</h3>
+        </div>
+        <div class="events-card">
+            <div class="event-list" id="event-list"></div>
+        </div>
+    </div>
+
+</div><!-- /container -->
+
+<script>
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    sequence: {
+        diagramMarginX: 20,
+        diagramMarginY: 10,
+        actorMargin: 60,
+        width: 160,
+        height: 65,
+        boxMargin: 10,
+        boxTextMargin: 5,
+        noteMargin: 10,
+        messageMargin: 40,
+        mirrorActors: true,
+        useMaxWidth: true,
+    }
+});
+
+let _mermaidSrc = "";
+let _tokenRows  = [];
+
+function collectLogs() {
+    const ids = ['orchestrator','flight','hotel','activity','weather','travel'];
+    return ids.map(id => {
+        const el = document.getElementById('log-' + id);
+        return el ? el.value.trim() : '';
+    }).filter(Boolean).join('\n');
+}
+
+function clearAll() {
+    ['orchestrator','flight','hotel','activity','weather','travel'].forEach(id => {
+        const el = document.getElementById('log-' + id);
+        if (el) el.value = '';
+    });
+    ['diagram-section','token-section','events-section','stats-bar'].forEach(id => {
+        document.getElementById(id).classList.remove('visible');
+    });
+    document.getElementById('error-box').classList.remove('visible');
+    document.getElementById('mermaid-output').innerHTML = '';
+    document.getElementById('mermaid-raw').textContent = '';
+    _mermaidSrc = '';
+    _tokenRows  = [];
+}
+
+async function analyze() {
+    const logs = collectLogs();
+    if (!logs) {
+        showError('Please paste at least one service log.');
+        return;
+    }
+
+    document.getElementById('error-box').classList.remove('visible');
+    document.getElementById('analyze-btn').disabled = true;
+    document.getElementById('loading').classList.add('active');
+
+    try {
+        const resp = await fetch('/analyze', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ logs }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+            showError(data.error || `HTTP ${resp.status}`);
+            return;
+        }
+
+        _mermaidSrc = data.mermaid;
+        _tokenRows  = data.token_table;
+
+        renderStats(data);
+        await renderDiagram(data.mermaid);
+        renderTokenTable(data.token_table);
+        renderEvents(data.events);
+
+    } catch (err) {
+        showError('Network error: ' + err.message);
+    } finally {
+        document.getElementById('analyze-btn').disabled = false;
+        document.getElementById('loading').classList.remove('active');
+    }
+}
+
+function showError(msg) {
+    const el = document.getElementById('error-box');
+    el.textContent = msg;
+    el.classList.add('visible');
+}
+
+function renderStats(data) {
+    const total  = (_tokenRows.find(r => r.is_total) || {}).tokens || 0;
+    const nevents= data.event_count || 0;
+    const strip  = document.getElementById('stats-bar');
+    strip.innerHTML = `
+        <span class="stat-chip">⚡ ${nevents} events parsed</span>
+        <span class="stat-chip">🪙 ${fmt(total)} total tokens</span>
+        <span class="stat-chip plain">Diagram ready</span>
+    `;
+    strip.classList.add('visible');
+}
+
+async function renderDiagram(src) {
+    const container = document.getElementById('mermaid-output');
+    container.innerHTML = '';
+    document.getElementById('mermaid-raw').textContent = src;
+
+    try {
+        const id  = 'mermaid-' + Date.now();
+        const { svg } = await mermaid.render(id, src);
+        container.innerHTML = svg;
+        // Make SVG responsive
+        const svgEl = container.querySelector('svg');
+        if (svgEl) {
+            svgEl.style.maxWidth  = '100%';
+            svgEl.style.height    = 'auto';
+        }
+    } catch (err) {
+        container.innerHTML = `<p style="color:#e65100">Diagram render error: ${esc(err.message)}</p>
+            <p style="font-size:0.85em;color:#888;margin-top:8px">
+            Raw Mermaid source is shown below — you can paste it into
+            <a href="https://mermaid.live" target="_blank">mermaid.live</a> directly.
+            </p>`;
+    }
+
+    document.getElementById('diagram-section').classList.add('visible');
+}
+
+function renderTokenTable(rows) {
+    const tbody = document.getElementById('token-tbody');
+    tbody.innerHTML = '';
+
+    const maxTok = Math.max(...rows.filter(r => !r.is_total).map(r => r.tokens), 1);
+    const dirLabel = {
+        send:    '→ send',
+        recv:    '← recv',
+        llm_in:  '🔵 LLM in',
+        llm_out: '🟠 LLM out',
+        '─':     '─',
+    };
+
+    rows.forEach(r => {
+        const pct = Math.round((r.tokens / maxTok) * 100);
+        const dirClass = r.is_total ? '' : `dir-${r.direction}`;
+        const bar = r.is_total ? '' : `
+            <span class="tok-bar-wrap">
+                <span class="tok-bar" style="width:${Math.min(pct,100)}%"></span>
+            </span>`;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${esc(r.service)}</td>
+            <td>${esc(r.call)}</td>
+            <td class="${dirClass}">${esc(dirLabel[r.direction] || r.direction)}</td>
+            <td style="text-align:right;font-family:monospace">${fmt(r.tokens)}</td>
+            <td>${bar}</td>
+            <td style="color:#888;font-size:0.85em">${esc(r.note||'')}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('token-section').classList.add('visible');
+}
+
+function renderEvents(events) {
+    const list = document.getElementById('event-list');
+    list.innerHTML = '';
+    events.forEach(ev => {
+        const div = document.createElement('div');
+        div.className = 'event-item';
+        const detail = Object.entries(ev.detail || {})
+            .filter(([,v]) => v && v !== 'None' && v !== '{}' && v !== '[]')
+            .map(([k,v]) => `${k}=${esc(String(v).slice(0,80))}`)
+            .join('  ');
+        div.innerHTML = `
+            <span class="ev-kind">${esc(ev.kind)}</span>
+            <span class="ev-svc">${esc(ev.svc)}</span>
+            <span class="ev-det">${detail}</span>
+        `;
+        list.appendChild(div);
+    });
+    document.getElementById('events-section').classList.add('visible');
+}
+
+function copyMermaid() {
+    if (!_mermaidSrc) return;
+    navigator.clipboard.writeText(_mermaidSrc).then(() => {
+        const btn = document.getElementById('copy-mermaid-btn');
+        btn.textContent = '✓ Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = 'Copy Mermaid source';
+            btn.classList.remove('copied');
+        }, 2000);
+    });
+}
+
+function copyCSV() {
+    if (!_tokenRows.length) return;
+    const header = 'Service,Call,Direction,Tokens,Note';
+    const body   = _tokenRows.map(r =>
+        [r.service, r.call, r.direction, r.tokens, r.note || '']
+        .map(v => `"${String(v).replace(/"/g,'""')}"`)
+        .join(',')
+    ).join('\n');
+    navigator.clipboard.writeText(header + '\n' + body).then(() => {
+        const btn = document.getElementById('copy-csv-btn');
+        btn.textContent = '✓ Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = 'Copy as CSV';
+            btn.classList.remove('copied');
+        }, 2000);
+    });
+}
+
+function fmt(n)  { return Number(n).toLocaleString(); }
+function esc(s)  {
+    return String(s ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

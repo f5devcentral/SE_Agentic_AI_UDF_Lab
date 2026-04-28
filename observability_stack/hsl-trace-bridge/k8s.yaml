@@ -1,0 +1,73 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hsl-trace-bridge
+  namespace: demo-travel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hsl-trace-bridge
+  template:
+    metadata:
+      labels:
+        app: hsl-trace-bridge
+    spec:
+      containers:
+        - name: hsl-trace-bridge
+          image: 10.1.1.7:30500/demo-travel/hsl-trace-bridge:v0.2
+          imagePullPolicy: Always
+          ports:
+            - name: tcp-hsl
+              containerPort: 9999
+              protocol: TCP
+            - name: http-api
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: HSL_TCP_PORT
+              value: "9999"
+            - name: HTTP_PORT
+              value: "8080"
+            - name: TEMPO_OTLP_URL
+              value: "http://tempo:4318/v1/traces"
+            - name: FLUSH_INTERVAL
+              value: "2.0"
+            - name: BATCH_SIZE
+              value: "50"
+            - name: LOG_LEVEL
+              value: "INFO"
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "50m",  memory: "64Mi"  }
+            limits:   { cpu: "200m", memory: "128Mi" }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hsl-trace-bridge
+  namespace: demo-travel
+spec:
+  selector:
+    app: hsl-trace-bridge
+  type: NodePort
+  ports:
+    - name: tcp-hsl
+      port: 9999
+      targetPort: 9999
+      protocol: TCP
+      nodePort: 30999
+    - name: http-api
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+      nodePort: 30998

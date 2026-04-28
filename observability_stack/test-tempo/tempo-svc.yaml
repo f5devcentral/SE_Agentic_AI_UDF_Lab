@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    meta.helm.sh/release-name: tempo
+    meta.helm.sh/release-namespace: demo-travel
+  creationTimestamp: "2026-03-19T16:18:06Z"
+  labels:
+    app.kubernetes.io/instance: tempo
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/version: 2.9.0
+    helm.sh/chart: tempo-1.24.4
+  name: tempo
+  namespace: demo-travel
+  resourceVersion: "42374"
+  uid: 7c48ca47-835a-4f9c-8547-d391d7ca1c2a
+spec:
+  clusterIP: 10.43.41.48
+  clusterIPs:
+  - 10.43.41.48
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: tempo-jaeger-thrift-compact
+    nodePort: 30661
+    port: 6831
+    protocol: UDP
+    targetPort: 6831
+  - name: tempo-jaeger-thrift-binary
+    nodePort: 32103
+    port: 6832
+    protocol: UDP
+    targetPort: 6832
+  - name: tempo-prom-metrics
+    nodePort: 31972
+    port: 3200
+    protocol: TCP
+    targetPort: 3200
+  - name: tempo-jaeger-thrift-http
+    nodePort: 30132
+    port: 14268
+    protocol: TCP
+    targetPort: 14268
+  - name: grpc-tempo-jaeger
+    nodePort: 30285
+    port: 14250
+    protocol: TCP
+    targetPort: 14250
+  - name: tempo-zipkin
+    nodePort: 31737
+    port: 9411
+    protocol: TCP
+    targetPort: 9411
+  - name: tempo-otlp-legacy
+    nodePort: 30622
+    port: 55680
+    protocol: TCP
+    targetPort: 55680
+  - name: tempo-otlp-http-legacy
+    nodePort: 32650
+    port: 55681
+    protocol: TCP
+    targetPort: 55681
+  - name: grpc-tempo-otlp
+    nodePort: 30371
+    port: 4317
+    protocol: TCP
+    targetPort: 4317
+  - name: tempo-otlp-http
+    nodePort: 31709
+    port: 4318
+    protocol: TCP
+    targetPort: 4318
+  - name: tempo-opencensus
+    nodePort: 31512
+    port: 55678
+    protocol: TCP
+    targetPort: 55678
+  selector:
+    app.kubernetes.io/instance: tempo
+    app.kubernetes.io/name: tempo
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}

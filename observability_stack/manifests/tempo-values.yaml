@@ -1,0 +1,42 @@
+service:
+  type: NodePort
+  nodePort: 32000
+
+tempo:
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: http://prometheus:9090/api/v1/write
+  global_overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 3200
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 6
+
+livenessProbe:
+  httpGet:
+    path: /ready
+    port: 3200
+  initialDelaySeconds: 45
+  periodSeconds: 15
+  failureThreshold: 4

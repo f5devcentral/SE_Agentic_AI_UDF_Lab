@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Planner</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #2c3e50; }
+        header { background: linear-gradient(135deg, #1a73e8, #0d47a1); color: white; padding: 32px 20px; text-align: center; }
+        header h1 { font-size: 2.2em; margin-bottom: 6px; }
+        header p { opacity: 0.85; font-size: 1.05em; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 30px 20px; }
+
+        /* Search Form */
+        .search-card { background: white; border-radius: 12px; padding: 28px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); margin-bottom: 36px; }
+        .search-card h2 { margin-bottom: 20px; color: #1a73e8; font-size: 1.2em; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; align-items: end; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.85em; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group input { padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 1em; transition: border 0.2s; }
+        .form-group input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.15); }
+        .btn-search { background: #1a73e8; color: white; border: none; padding: 11px 28px; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: background 0.2s; width: 100%; }
+        .btn-search:hover { background: #1558b0; }
+
+        /* Section titles */
+        .section-title { font-size: 1.4em; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+        .section-title span { font-size: 1.3em; }
+        .section { margin-bottom: 40px; }
+
+        /* Cards grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+        .card { background: white; border-radius: 10px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #1a73e8; transition: transform 0.15s, box-shadow 0.15s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+        .card h3 { font-size: 1.05em; margin-bottom: 10px; color: #1a1a2e; }
+        .card p { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+        .price { font-size: 1.3em; font-weight: 700; color: #27ae60; margin-top: 10px; }
+        .tag { display: inline-block; background: #e8f0fe; color: #1a73e8; border-radius: 4px; padding: 2px 8px; font-size: 0.78em; margin: 2px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; }
+        .badge-green { background: #e6f4ea; color: #1e7e34; }
+        .badge-orange { background: #fff3e0; color: #e65100; }
+        .stars { color: #f59e0b; }
+        .rating { background: #1a73e8; color: white; border-radius: 6px; padding: 2px 8px; font-size: 0.85em; font-weight: 700; }
+        .no-results { background: white; border-radius: 10px; padding: 24px; text-align: center; color: #888; font-size: 0.95em; }
+        .summary-bar { background: #e8f0fe; border-radius: 8px; padding: 12px 18px; margin-bottom: 24px; font-size: 0.95em; color: #1a73e8; font-weight: 500; }
+
+        @media (max-width: 768px) {
+            .form-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 480px) {
+            .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>✈️ Travel Planner</h1>
+    <p>Find flights, hotels and activities for your next trip</p>
+</header>
+<div class="container">
+
+    <!-- Search Form -->
+    <div class="search-card">
+        <h2>🔍 Search your trip</h2>
+        <form method="POST" action="/">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>From</label>
+                    <input type="text" name="origin" placeholder="e.g. Paris" required value="{{ form_data.get('origin', '') }}">
+                </div>
+                <div class="form-group">
+                    <label>To</label>
+                    <input type="text" name="destination" placeholder="e.g. Rome" required value="{{ form_data.get('destination', '') }}">
+                </div>
+                <div class="form-group">
+                    <label>Departure date</label>
+                    <input type="date" name="departure_date" required value="{{ form_data.get('departure_date', '') }}">
+                </div>
+                <div class="form-group">
+                    <label>Return date</label>
+                    <input type="date" name="return_date" required value="{{ form_data.get('return_date', '') }}">
+                </div>
+            </div>
+            <br>
+            <button type="submit" class="btn-search">Search trips</button>
+        </form>
+    </div>
+
+    {% if results %}
+    <div class="summary-bar">
+        Showing results for <strong>{{ form_data.origin }}</strong> → <strong>{{ form_data.destination }}</strong>
+        &nbsp;|&nbsp; {{ form_data.departure_date }} → {{ form_data.return_date }}
+    </div>
+
+    <!-- Flights -->
+    <div class="section">
+        <div class="section-title"><span>✈️</span> Available Flights</div>
+        {% if results.flights %}
+        <div class="grid">
+            {% for f in results.flights %}
+            <div class="card">
+                <h3>{{ f.airline }}</h3>
+                <p>{{ f.origin }} → {{ f.destination }}</p>
+                <p>🕐 {{ f.departure_time }} → {{ f.arrival_time }} &nbsp;({{ f.duration_hours }}h)</p>
+                <p>
+                    {% if f.stops == 0 %}
+                    <span class="badge badge-green">Direct</span>
+                    {% else %}
+                    <span class="badge badge-orange">{{ f.stops }} stop{{ 's' if f.stops > 1 }}</span>
+                    {% endif %}
+                </p>
+                <div class="price">${{ f.price }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-results">No flights found for this route.</div>
+        {% endif %}
+    </div>
+
+    <!-- Hotels -->
+    <div class="section">
+        <div class="section-title"><span>🏨</span> Hotels in {{ form_data.destination }}</div>
+        {% if results.hotels %}
+        <div class="grid">
+            {% for h in results.hotels %}
+            <div class="card">
+                <h3>{{ h.name }}</h3>
+                <p><span class="stars">{{ '⭐' * h.stars }}</span></p>
+                <p>
+                    <span class="rating">{{ h.rating }}/10</span>
+                </p>
+                <p style="margin-top:8px">
+                    {% for a in h.amenities %}<span class="tag">{{ a }}</span>{% endfor %}
+                </p>
+                <div class="price">${{ h.price_per_night }}<span style="font-size:0.6em;color:#888">/night</span></div>
+                <p style="font-size:0.85em;color:#888">Total {{ h.nights }} nights: <strong>${{ h.total_price }}</strong></p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-results">No hotels found for this destination.</div>
+        {% endif %}
+    </div>
+
+    <!-- Activities -->
+    <div class="section">
+        <div class="section-title"><span>🎯</span> Activities in {{ form_data.destination }}</div>
+        {% if results.activities %}
+        <div class="grid">
+            {% for a in results.activities %}
+            <div class="card">
+                <h3>{{ a.title }}</h3>
+                <p>{{ a.description }}</p>
+                {% if a.city %}<p style="margin-top:8px"><span class="tag">📍 {{ a.city }}</span></p>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-results">No activities found for {{ form_data.destination }}.</div>
+        {% endif %}
+    </div>
+
+    {% endif %}
+</div>
+</body>
+</html>

@@ -1,0 +1,86 @@
+mode: deployment
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: latest
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:14250
+        thrift_compact:
+          endpoint: ${env:MY_POD_IP}:6831
+        thrift_http:
+          endpoint: ${env:MY_POD_IP}:14268
+    zipkin:
+      endpoint: ${env:MY_POD_IP}:9411
+    prometheus:
+      config:
+        scrape_configs:
+        - job_name: opentelemetry-collector
+          scrape_interval: 10s
+          static_configs:
+          - targets:
+            - ${env:MY_POD_IP}:8888
+
+  processors:
+    batch: {}
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    servicegraph: {}
+
+  exporters:
+    otlp_grpc/tempo:
+      endpoint: tempo:4317
+      tls:
+        insecure: true
+    prometheus:
+      endpoint: 0.0.0.0:8889
+    debug:
+      verbosity: detailed
+
+  extensions:
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+
+  service:
+    extensions:
+      - health_check
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch, servicegraph]
+        exporters: [otlp_grpc/tempo, debug]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [prometheus]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [debug]
+
+  telemetry:
+    resource:
+      host.name: ${env:OTEL_K8S_NODE_NAME}
+      k8s.namespace.name: ${env:OTEL_K8S_NAMESPACE}
+      k8s.node.ip: ${env:OTEL_K8S_NODE_IP}
+      k8s.node.name: ${env:OTEL_K8S_NODE_NAME}
+      k8s.pod.ip: ${env:OTEL_K8S_POD_IP}
+      k8s.pod.name: ${env:OTEL_K8S_POD_NAME}
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: ${env:MY_POD_IP}
+                port: 8888

@@ -1,0 +1,22 @@
+# values-prometheus.yaml
+grafana:
+  adminPassword: admin
+  service:
+    type: NodePort
+    nodePort: 30080
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.demo-travel.svc.cluster.local:3100
+      access: proxy
+    - name: Jaeger
+      type: jaeger
+      url: http://jaeger.demo-travel.svc.cluster.local:16686
+      access: proxy
+
+prometheus:
+  service:
+    type: NodePort
+    nodePort: 30900
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false

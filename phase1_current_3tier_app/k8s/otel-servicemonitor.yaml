@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: otel-collector
+  namespace: demo-travel
+  labels:
+    release: observability-stack
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  namespaceSelector:
+    matchNames:
+      - demo-travel
+  endpoints:
+    - port: metrics
+      interval: 10s

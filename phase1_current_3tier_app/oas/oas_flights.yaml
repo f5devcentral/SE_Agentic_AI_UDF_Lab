@@ -1,0 +1,179 @@
+openapi: 3.1.0
+info:
+  title: Flights Service API
+  description: |
+    Generates on-the-fly flight options matching a user's origin, destination and travel date.
+    Results are randomised on each call — no two responses are identical.
+  version: 1.0.0
+  contact:
+    name: Demo Travel App
+
+servers:
+  - url: http://localhost:5002
+    description: Local development
+
+tags:
+  - name: Flights
+    description: Flight search operations
+  - name: Health
+    description: Service health
+
+paths:
+  /flights:
+    get:
+      tags: [Flights]
+      summary: Search available flights
+      description: |
+        Returns a randomised list of 3–6 flights sorted by price (ascending).
+        All three query parameters should be provided for meaningful results;
+        if omitted they default to `"Unknown"` / empty string.
+      operationId: searchFlights
+      parameters:
+        - name: origin
+          in: query
+          required: false
+          description: Departure city or airport name
+          schema:
+            type: string
+            example: Paris
+        - name: destination
+          in: query
+          required: false
+          description: Arrival city or airport name
+          schema:
+            type: string
+            example: Barcelona
+        - name: date
+          in: query
+          required: false
+          description: Departure date in YYYY-MM-DD format
+          schema:
+            type: string
+            format: date
+            example: "2025-06-15"
+      responses:
+        "200":
+          description: A list of available flights sorted by price
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flight"
+              example:
+                - airline: SkyJet
+                  origin: Paris
+                  destination: Barcelona
+                  date: "2025-06-15"
+                  departure_time: "08:00"
+                  arrival_time: "09:30"
+                  duration_hours: 1.5
+                  stops: 0
+                  price: 134
+                - airline: AirNova
+                  origin: Paris
+                  destination: Barcelona
+                  date: "2025-06-15"
+                  departure_time: "14:15"
+                  arrival_time: "16:45"
+                  duration_hours: 2.5
+                  stops: 1
+                  price: 210
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthFlights
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+components:
+  schemas:
+    Flight:
+      type: object
+      required:
+        - airline
+        - origin
+        - destination
+        - date
+        - departure_time
+        - arrival_time
+        - duration_hours
+        - stops
+        - price
+      properties:
+        airline:
+          type: string
+          description: Airline name
+          example: SkyJet
+          enum: [SkyJet, AirNova, BlueWind, EuroSky, FlyFast]
+        origin:
+          type: string
+          description: Departure city
+          example: Paris
+        destination:
+          type: string
+          description: Arrival city
+          example: Barcelona
+        date:
+          type: string
+          format: date
+          description: Departure date
+          example: "2025-06-15"
+        departure_time:
+          type: string
+          pattern: "^[0-2][0-9]:[0-5][0-9]$"
+          description: Departure time in HH:MM format
+          example: "08:00"
+        arrival_time:
+          type: string
+          pattern: "^[0-2][0-9]:[0-5][0-9]$"
+          description: Arrival time in HH:MM format (may be next day if duration crosses midnight)
+          example: "09:30"
+        duration_hours:
+          type: number
+          format: float
+          minimum: 1.5
+          maximum: 12.0
+          description: Flight duration in hours
+          example: 1.5
+        stops:
+          type: integer
+          minimum: 0
+          maximum: 2
+          description: Number of stopovers (0 = direct)
+          example: 0
+        price:
+          type: integer
+          minimum: 120
+          maximum: 900
+          description: Ticket price in USD
+          example: 134
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal server error

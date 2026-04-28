@@ -1,0 +1,81 @@
+apiVersion: v1
+data:
+  overrides.yaml: |
+    overrides:
+      {}
+  tempo.yaml: |
+    memberlist:
+      cluster_label: "tempo.demo-travel"
+    multitenancy_enabled: false
+    usage_report:
+      reporting_enabled: true
+    compactor:
+      compaction:
+        block_retention: 24h
+    distributor:
+      receivers:
+            jaeger:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:14250
+                thrift_binary:
+                  endpoint: 0.0.0.0:6832
+                thrift_compact:
+                  endpoint: 0.0.0.0:6831
+                thrift_http:
+                  endpoint: 0.0.0.0:14268
+            opencensus: null
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+    ingester:
+          {}
+    server:
+          http_listen_port: 3200
+    storage:
+          trace:
+            backend: local
+            local:
+              path: /var/tempo/traces
+            wal:
+              path: /var/tempo/wal
+    querier:
+          {}
+    query_frontend:
+          {}
+    overrides:
+          defaults:
+            metrics_generator:
+              processors:
+              - service-graphs
+              - span-metrics
+          per_tenant_override_config: /conf/overrides.yaml
+    metrics_generator:
+      processor:
+            service_graphs: {}
+            span_metrics: {}
+      storage:
+        path: "/tmp/tempo"
+        remote_write:
+          - url: http://prometheus.demo-travel.svc.cluster.local:9090/api/v1/write
+      traces_storage:
+        path: "/tmp/traces"
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: tempo
+    meta.helm.sh/release-namespace: demo-travel
+  creationTimestamp: "2026-03-19T16:18:06Z"
+  labels:
+    app.kubernetes.io/instance: tempo
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/version: 2.9.0
+    helm.sh/chart: tempo-1.24.4
+  name: tempo
+  namespace: demo-travel
+  resourceVersion: "42361"
+  uid: f6259509-5dd0-4f40-8a15-5a52016ec48a

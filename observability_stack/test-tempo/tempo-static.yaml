@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo
+  namespace: demo-travel
+data:
+  tempo.yaml: |
+    target: all
+
+    server:
+      http_listen_port: 3200
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+            http:
+
+    ingester:
+      lifecycler:
+        ring:
+          kvstore:
+            store: memberlist
+
+    compactor:
+      compaction:
+        block_retention: 168h
+
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /tmp/tempo
+
+    metrics_generator:
+      processor:
+        service_graphs: {}
+        span_metrics: {}
+
+    overrides:
+      defaults:
+        metrics_generator:
+          processors: [service-graphs, span-metrics]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: demo-travel
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: tempo
+  ports:
+    - name: http
+      port: 3200
+      targetPort: 3200
+      nodePort: 32000
+    - name: grpc-otlp
+      port: 4317
+      targetPort: 4317
+      nodePort: 30371
+    - name: http-otlp
+      port: 4318
+      targetPort: 4318
+      nodePort: 31709
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tempo
+  namespace: demo-travel
+spec:
+  serviceName: tempo
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tempo
+    spec:
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.4.1
+          args:
+            - "-config.file=/etc/tempo/tempo.yaml"
+          ports:
+            - name: http
+              containerPort: 3200
+            - name: grpc-otlp
+              containerPort: 4317
+            - name: http-otlp
+              containerPort: 4318
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+            - name: storage
+              mountPath: /tmp/tempo
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 3200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: config
+          configMap:
+            name: tempo
+
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi

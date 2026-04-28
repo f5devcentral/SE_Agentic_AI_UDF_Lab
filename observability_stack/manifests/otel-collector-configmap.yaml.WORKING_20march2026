@@ -1,0 +1,38 @@
+# OTEL Collector ConfigMap (OBS cluster example)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: demo-travel
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+      otlp/tempo:
+        endpoint: tempo:4317
+        tls:
+          insecure: true
+      loki:
+        endpoint: http://loki.demo-travel.svc.cluster.local:3100/loki/api/v1/push
+      debug:
+        verbosity: detailed
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [otlp/tempo, debug]
+        metrics:
+          receivers: [otlp]
+          exporters: [prometheus]
+        logs:
+          receivers: [otlp]
+          exporters: [loki, debug]
+

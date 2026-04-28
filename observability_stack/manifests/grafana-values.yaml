@@ -1,0 +1,26 @@
+grafana:
+  adminPassword: admin
+  service:
+    nodePort: 30080
+    type: NodePort
+  additionalDataSources:
+  - access: proxy
+    name: Loki
+    type: loki
+    url: http://loki.demo-travel.svc.cluster.local:3100
+    isDefault: false
+  - access: proxy
+    name: Tempo
+    type: tempo
+    url: http://tempo.demo-travel.svc.cluster.local:3200
+    isDefault: false
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      tracesToLogs:
+        datasourceUid: P8E80F9AEF21F6940
+      tracesToMetrics:
+        datasourceUid: prometheus

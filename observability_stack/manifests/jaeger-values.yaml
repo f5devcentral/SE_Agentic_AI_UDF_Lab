@@ -1,0 +1,11 @@
+# Jaeger values.yaml (for Helm)
+query:
+  service:
+    type: NodePort
+    nodePort: 16686
+  agent:
+    enabled: true
+  collector:
+    service:
+      type: ClusterIP
+

@@ -1,0 +1,177 @@
+openapi: 3.1.0
+info:
+  title: Hotels Service API
+  description: |
+    Generates on-the-fly hotel options for a given destination city and stay period.
+    Results are randomised on each call — no two responses are identical.
+    Total price is calculated automatically from the number of nights derived from
+    `checkin` and `checkout` dates.
+  version: 1.0.0
+  contact:
+    name: Demo Travel App
+
+servers:
+  - url: http://localhost:5001
+    description: Local development
+
+tags:
+  - name: Hotels
+    description: Hotel search operations
+  - name: Health
+    description: Service health
+
+paths:
+  /hotels:
+    get:
+      tags: [Hotels]
+      summary: Search available hotels
+      description: |
+        Returns a randomised list of 3–5 hotels sorted by price per night (ascending).
+        All three query parameters should be provided for meaningful results.
+        If `checkin` / `checkout` are omitted or unparseable, `nights` defaults to 1.
+      operationId: searchHotels
+      parameters:
+        - name: city
+          in: query
+          required: false
+          description: Destination city name
+          schema:
+            type: string
+            example: Barcelona
+        - name: checkin
+          in: query
+          required: false
+          description: Check-in date in YYYY-MM-DD format
+          schema:
+            type: string
+            format: date
+            example: "2025-06-15"
+        - name: checkout
+          in: query
+          required: false
+          description: Check-out date in YYYY-MM-DD format (must be after checkin)
+          schema:
+            type: string
+            format: date
+            example: "2025-06-20"
+      responses:
+        "200":
+          description: A list of available hotels sorted by price per night
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Hotel"
+              example:
+                - name: Grand Palace Barcelona
+                  city: Barcelona
+                  stars: 4
+                  price_per_night: 120
+                  total_price: 600
+                  nights: 5
+                  amenities: [WiFi, Pool, Gym, Restaurant]
+                  rating: 8.7
+                - name: Ocean View Barcelona
+                  city: Barcelona
+                  stars: 5
+                  price_per_night: 280
+                  total_price: 1400
+                  nights: 5
+                  amenities: [WiFi, Spa, Bar, Room Service, Parking]
+                  rating: 9.2
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthHotels
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+components:
+  schemas:
+    Hotel:
+      type: object
+      required:
+        - name
+        - city
+        - stars
+        - price_per_night
+        - total_price
+        - nights
+        - amenities
+        - rating
+      properties:
+        name:
+          type: string
+          description: Hotel name including the city suffix
+          example: Grand Palace Barcelona
+        city:
+          type: string
+          description: Destination city
+          example: Barcelona
+        stars:
+          type: integer
+          minimum: 3
+          maximum: 5
+          description: Star rating
+          example: 4
+        price_per_night:
+          type: integer
+          minimum: 80
+          maximum: 350
+          description: Nightly rate in USD
+          example: 120
+        total_price:
+          type: integer
+          description: Total stay cost in USD (price_per_night × nights)
+          example: 600
+        nights:
+          type: integer
+          minimum: 1
+          description: Number of nights derived from checkin / checkout dates
+          example: 5
+        amenities:
+          type: array
+          minItems: 3
+          maxItems: 6
+          description: List of available amenities
+          items:
+            type: string
+            enum: [Pool, Gym, Spa, Restaurant, Bar, Parking, WiFi, Room Service]
+          example: [WiFi, Pool, Gym]
+        rating:
+          type: number
+          format: float
+          minimum: 7.0
+          maximum: 9.9
+          description: Guest rating out of 10
+          example: 8.7
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal server error

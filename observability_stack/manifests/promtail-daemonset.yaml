@@ -1,0 +1,58 @@
+# Promtail DaemonSet for K3s clusters (forwarding to Loki)
+# (Usually installed via Helm, but here is a manifest example)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: promtail
+  template:
+    metadata:
+      labels:
+        name: promtail
+    spec:
+      serviceAccountName: promtail
+      containers:
+      - name: promtail
+        image: grafana/promtail:2.9.2
+        args:
+          - -config.file=/etc/promtail/promtail.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /etc/promtail
+        - name: varlog
+          mountPath: /var/log
+      volumes:
+      - name: config
+        configMap:
+          name: promtail-config
+      - name: varlog
+        hostPath:
+          path: /var/log
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: kube-system
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+    positions:
+      filename: /tmp/positions.yaml
+    clients:
+      - url: http://10.1.1.8:31080/loki/api/v1/push
+    scrape_configs:
+      - job_name: kubernetes-pods
+        static_configs:
+        - targets: ['localhost']
+          labels:
+            job: kubernetes-pods
+            __path__: /var/log/containers/*.log
+
+

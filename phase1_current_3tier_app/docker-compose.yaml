@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+
+  postgres:
+    restart: unless-stopped
+    image: postgres:15
+    environment:
+      POSTGRES_USER: travel
+      POSTGRES_PASSWORD: travelpass
+      POSTGRES_DB: travel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel"]
+      interval: 5s
+      retries: 5
+
+  flights:
+    restart: unless-stopped
+    build: 
+      context: .
+      dockerfile: flights/Dockerfile
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - "5002:5002"
+
+  hotels:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: hotels/Dockerfile
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - "5001:5001"
+
+  frontend:
+    restart: unless-stopped
+    build: 
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - flights
+      - hotels
+      - postgres
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      PG_HOST: postgres
+      PG_USER: travel
+      PG_PASSWORD: travelpass
+      PG_DB: travel
+    ports:
+      - "8080:5000"
+
+volumes:
+  postgres_data:
+

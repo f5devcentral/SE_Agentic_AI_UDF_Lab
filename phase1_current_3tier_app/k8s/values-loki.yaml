@@ -1,0 +1,12 @@
+loki:
+  service:
+    type: NodePort
+    nodePort: 31080
+  persistence:
+    enabled: true
+    size: 10Gi
+
+promtail:
+  enabled: true
+  serviceMonitor:
+    enabled: true

@@ -1,0 +1,99 @@
+# otel-values-with-servicegraph.yaml
+# servicegraph was moved from a processor to a connector in v0.100.0+
+# It now acts as: exporter on traces pipeline → receiver on metrics pipeline
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: latest
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: opentelemetry-collector
+            scrape_interval: 10s
+            static_configs:
+              - targets: ["0.0.0.0:8888"]
+
+  exporters:
+    otlp_grpc/tempo:
+      endpoint: tempo:4317
+      tls:
+        insecure: true
+    prometheus:
+      endpoint: 0.0.0.0:8889
+    debug:
+      verbosity: detailed
+
+  connectors:
+    servicegraph:
+      metrics_flush_interval: 15s
+      dimensions: []
+      store:
+        ttl: 2s
+        max_items: 1000
+
+  processors:
+    batch: {}
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_grpc/tempo, debug, servicegraph]   # servicegraph as exporter here...
+      metrics:
+        receivers: [otlp, servicegraph]                      # ...and as receiver here
+        processors: [memory_limiter, batch]
+        exporters: [prometheus]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [debug]
+    telemetry:
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: ${env:MY_POD_IP}
+                  port: 8888
+      resource:
+        host.name: ${env:OTEL_K8S_NODE_NAME}
+        k8s.namespace.name: ${env:OTEL_K8S_NAMESPACE}
+        k8s.node.ip: ${env:OTEL_K8S_NODE_IP}
+        k8s.node.name: ${env:OTEL_K8S_NODE_NAME}
+        k8s.pod.ip: ${env:OTEL_K8S_POD_IP}
+        k8s.pod.name: ${env:OTEL_K8S_POD_NAME}
+
+mode: deployment
+ports:
+  otlp:
+    containerPort: 4317
+    enabled: true
+    nodePort: 30431
+    protocol: TCP
+    servicePort: 4317
+  metrics:                   # OTel collector internal metrics (telemetry.metrics)
+    containerPort: 8888
+    enabled: true
+    protocol: TCP
+    servicePort: 8888
+  prom-exporter:             # Service graph + pipeline metrics (prometheus exporter)
+    containerPort: 8889
+    enabled: true
+    protocol: TCP
+    servicePort: 8889
+service:
+  type: NodePort
+
