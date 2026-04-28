@@ -1,0 +1,16 @@
+flask>=3.0.0
+fastmcp==3.0.0rc1
+httpx>=0.26.0
+
+requests>=2.31
+psycopg2-binary>=2.9
+prometheus-client>=0.17
+opentelemetry-api==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-exporter-otlp-proto-grpc==1.39.1
+opentelemetry-exporter-otlp-proto-http==1.39.1
+
+opentelemetry-instrumentation==0.60b1
+opentelemetry-instrumentation-flask==0.60b1
+opentelemetry-instrumentation-requests==0.60b1
+

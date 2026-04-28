@@ -1,0 +1,59 @@
+---
+apiVersion: travel.demo/v1alpha1
+kind: MCPCard
+metadata:
+  name: weather-mcp-card
+  namespace: demo-travel
+  labels:
+    app: weather-mcp
+spec:
+  serverName: weather-mcp-server
+  version: "1.0.0"
+  description: >
+    Weather forecast MCP server. Provides 5-day mock weather forecasts for any
+    city. In production, replace the mock with a real weather API backend.
+  instructions: >
+    Use this server to fetch weather forecasts for a travel destination.
+    Call get_weather_forecast with the destination city and the departure date
+    to get a 5-day outlook. The response includes daily conditions, temperature
+    in both Celsius and Fahrenheit, precipitation, humidity and wind speed.
+
+  transport: streamable-http
+  endpoint:
+    path: /mcp
+    port: 8001
+    nodePort: 30101
+
+  tools:
+    - name: get_weather_forecast
+      description: >
+        Get a 5-day weather forecast for a city starting from a given date.
+        Returns daily conditions, high/low temperatures (°C and °F),
+        precipitation, humidity, and wind speed.
+      inputSchema:
+        type: object
+        required: [city, date]
+        properties:
+          city:
+            type: string
+            description: Destination city name
+          date:
+            type: string
+            format: date
+            description: Start date for the forecast in YYYY-MM-DD format
+      examples:
+        - description: Get Barcelona weather for travel dates
+          input:
+            city: Barcelona
+            date: "2025-06-15"
+          expectedOutput: >
+            5-day forecast with condition, icon, temp_high_c/f,
+            temp_low_c/f, precipitation_mm, humidity_pct, wind_kmh
+
+  observability:
+    metricsPath: /metrics
+    logsEnabled: true
+    tracingEnabled: true
+
+  auth:
+    type: none

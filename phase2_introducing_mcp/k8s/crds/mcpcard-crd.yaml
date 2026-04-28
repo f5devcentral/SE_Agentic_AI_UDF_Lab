@@ -1,0 +1,189 @@
+---
+# MCPCard Custom Resource Definition
+# Describes MCP servers for service discovery and automatic F5 VIP routing
+# Group: travel.demo
+# Version: v1alpha1
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: mcpcards.travel.demo
+  annotations:
+    description: "MCP Server registry for automatic F5 VirtualServer creation"
+spec:
+  group: travel.demo
+  scope: Namespaced
+  names:
+    plural: mcpcards
+    singular: mcpcard
+    kind: MCPCard
+    shortNames:
+      - mcp
+      - mcpcard
+    categories:
+      - mcp
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [serverName, transport, endpoint, tools]
+              properties:
+                # Server Identity
+                serverName:
+                  type: string
+                  description: "MCP server name (e.g., 'travel-mcp-server')"
+                  minLength: 1
+                
+                version:
+                  type: string
+                  description: "Server version (semver)"
+                  pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+                  default: "1.0.0"
+                
+                description:
+                  type: string
+                  description: "What this MCP server provides"
+                  maxLength: 500
+                
+                instructions:
+                  type: string
+                  description: "Natural language guide for LLM clients on when to use this server"
+                
+                # Network Configuration
+                transport:
+                  type: string
+                  enum: [streamable-http, sse, stdio]
+                  description: "MCP transport protocol"
+                  default: "streamable-http"
+                
+                endpoint:
+                  type: object
+                  required: [path, nodePort]
+                  properties:
+                    path:
+                      type: string
+                      description: "HTTP path for MCP endpoint"
+                      pattern: '^/.*'
+                      example: "/mcp"
+                    
+                    port:
+                      type: integer
+                      description: "Container port"
+                      minimum: 1
+                      maximum: 65535
+                      default: 8000
+                    
+                    nodePort:
+                      type: integer
+                      description: "Kubernetes NodePort exposing this server"
+                      minimum: 30000
+                      maximum: 32767
+                
+                # MCP Tools
+                tools:
+                  type: array
+                  description: "Tools exposed by this MCP server"
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [name, description]
+                    properties:
+                      name:
+                        type: string
+                        description: "Tool name"
+                        minLength: 1
+                      
+                      description:
+                        type: string
+                        description: "What this tool does"
+                        minLength: 1
+                      
+                      inputSchema:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                        description: "JSON Schema for tool input parameters"
+                      
+                      outputSchema:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                        description: "JSON Schema for tool output"
+                      
+                      examples:
+                        type: array
+                        description: "Usage examples"
+                        items:
+                          type: object
+                          properties:
+                            description:
+                              type: string
+                            input:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            expectedOutput:
+                              type: string
+                
+                # Observability
+                observability:
+                  type: object
+                  properties:
+                    metricsPath:
+                      type: string
+                      default: "/metrics"
+                    
+                    logsEnabled:
+                      type: boolean
+                      default: true
+                    
+                    tracingEnabled:
+                      type: boolean
+                      default: true
+                
+                # Authentication (future use)
+                auth:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum: [none, bearer, apiKey, oauth2]
+                      default: "none"
+                    
+                    headerName:
+                      type: string
+                      default: "Authorization"
+      
+      # Additional printer columns for kubectl get mcpcards
+      additionalPrinterColumns:
+        - name: Server
+          type: string
+          jsonPath: .spec.serverName
+          description: MCP server name
+        
+        - name: Transport
+          type: string
+          jsonPath: .spec.transport
+          description: Transport protocol
+        
+        - name: NodePort
+          type: integer
+          jsonPath: .spec.endpoint.nodePort
+          description: K8s NodePort
+        
+        - name: Tools
+          type: integer
+          jsonPath: .spec.tools[*]
+          description: Number of tools
+        
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+      # Status subresource
+      subresources:
+        status: {}

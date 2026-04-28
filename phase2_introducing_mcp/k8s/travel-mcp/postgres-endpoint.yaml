@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: postgres
+  namespace: demo-travel
+subsets:
+  - addresses:
+      - ip: 10.1.10.134
+    ports:
+      - port: 5432

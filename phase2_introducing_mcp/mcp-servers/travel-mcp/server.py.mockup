@@ -1,0 +1,202 @@
+"""
+Travel MCP Server
+-----------------
+Exposes three tools over FastMCP Streamable HTTP:
+  - search_flights(origin, destination, date)       → list of flights
+  - search_hotels(city, checkin, checkout)          → list of hotels
+  - search_activities(city)                         → list of activities from PostgreSQL
+
+Transport : streamable-http  (MCP spec 2025-06-18)
+Port      : 8000  (mapped to K8s NodePort 30100)
+"""
+
+import json
+import logging
+import os
+import random
+from datetime import datetime
+from typing import Any
+
+import psycopg2
+from fastmcp import FastMCP
+
+
+# -- OTel setup ----------
+import sys
+sys.path.insert(0, "/app")
+from shared.otel import setup_otel
+
+SERVICE = "travel-mcp-server"
+tracer, meter, logger = setup_otel(SERVICE)
+
+tool_calls = meter.create_counter("mcp_tool_calls_total", description="MCP tool invocations")
+tool_errors = meter.create_counter("mcp_tool_errors_total", description="MCP tool errors")
+
+# ── PostgreSQL config ─────────────────────────────────────────────────────────
+PG_HOST = os.getenv("PG_HOST", "postgres")
+PG_USER = os.getenv("PG_USER", "travel")
+PG_PASSWORD = os.getenv("PG_PASSWORD", "travelpass")
+PG_DB = os.getenv("PG_DB", "travel")
+
+# ── Static data ───────────────────────────────────────────────────────────────
+AIRLINES = ["SkyJet", "AirNova", "BlueWind", "EuroSky", "FlyFast"]
+HOTEL_NAMES = [
+    "Grand Palace", "Ocean View", "City Lights", "Royal Stay",
+    "The Metropolitan", "Harbor Inn", "Central Suites", "The Boulevard",
+]
+AMENITIES = ["Pool", "Gym", "Spa", "Restaurant", "Bar", "Parking", "WiFi", "Room Service"]
+
+# ── FastMCP server ────────────────────────────────────────────────────────────
+mcp = FastMCP(
+    name="travel-mcp-server",
+    instructions=(
+        "Travel data server. Use search_flights to find flights, "
+        "search_hotels to find accommodation, and search_activities "
+        "to discover things to do at the destination."
+    ),
+)
+
+@mcp.tool(
+    description=(
+        "Search for available flights between two cities on a given date. "
+        "Returns 3-6 flight options sorted by price. "
+        "Example: search_flights('Paris', 'Barcelona', '2025-06-15')"
+    )
+)
+def search_flights(origin: str, destination: str, date: str) -> list[dict[str, Any]]:
+    """Find available flights matching origin, destination and travel date."""
+    with tracer.start_as_current_span("search_flights") as span:
+        span.set_attribute("flight.origin", origin)
+        span.set_attribute("flight.destination", destination)
+        span.set_attribute("flight.date", date)
+        tool_calls.add(1, {"tool": "search_flights"})
+        logger.info(f"search_flights called: {origin} → {destination} on {date}")
+
+        try:
+            results = []
+            for _ in range(random.randint(3, 6)):
+                hour = random.randint(5, 22)
+                minute = random.choice([0, 15, 30, 45])
+                duration = round(random.uniform(1.5, 12.0), 1)
+                arrival_hour = (hour + int(duration)) % 24
+                results.append({
+                    "airline": random.choice(AIRLINES),
+                    "origin": origin,
+                    "destination": destination,
+                    "date": date,
+                    "departure_time": f"{hour:02d}:{minute:02d}",
+                    "arrival_time": f"{arrival_hour:02d}:{minute:02d}",
+                    "duration_hours": duration,
+                    "stops": random.choice([0, 0, 0, 1, 1, 2]),
+                    "price": random.randint(120, 900),
+                })
+            results.sort(key=lambda x: x["price"])
+            span.set_attribute("flight.results_count", len(results))
+            return results
+        except Exception as e:
+            tool_errors.add(1, {"tool": "search_flights"})
+            logger.error(f"search_flights error: {e}")
+            span.record_exception(e)
+            raise
+
+
+@mcp.tool(
+    description=(
+        "Search for hotels in a city for a given stay period. "
+        "Returns 3-5 hotel options sorted by price per night, with total cost calculated. "
+        "Example: search_hotels('Barcelona', '2025-06-15', '2025-06-20')"
+    )
+)
+def search_hotels(city: str, checkin: str, checkout: str) -> list[dict[str, Any]]:
+    """Find available hotels in the destination city for the given dates."""
+    with tracer.start_as_current_span("search_hotels") as span:
+        span.set_attribute("hotel.city", city)
+        span.set_attribute("hotel.checkin", checkin)
+        span.set_attribute("hotel.checkout", checkout)
+        tool_calls.add(1, {"tool": "search_hotels"})
+        logger.info(f"search_hotels called: {city} {checkin}→{checkout}")
+
+        try:
+            nights = 1
+            try:
+                d1 = datetime.strptime(checkin, "%Y-%m-%d")
+                d2 = datetime.strptime(checkout, "%Y-%m-%d")
+                nights = max(1, (d2 - d1).days)
+            except ValueError:
+                pass
+
+            results = []
+            names = random.sample(HOTEL_NAMES, min(random.randint(3, 5), len(HOTEL_NAMES)))
+            for name in names:
+                ppn = random.randint(80, 350)
+                results.append({
+                    "name": f"{name} {city}",
+                    "city": city,
+                    "stars": random.randint(3, 5),
+                    "price_per_night": ppn,
+                    "total_price": ppn * nights,
+                    "nights": nights,
+                    "amenities": random.sample(AMENITIES, random.randint(3, 6)),
+                    "rating": round(random.uniform(7.0, 9.9), 1),
+                })
+            results.sort(key=lambda x: x["price_per_night"])
+            span.set_attribute("hotel.results_count", len(results))
+            return results
+        except Exception as e:
+            tool_errors.add(1, {"tool": "search_hotels"})
+            logger.error(f"search_hotels error: {e}")
+            span.record_exception(e)
+            raise
+
+
+@mcp.tool(
+    description=(
+        "Retrieve activities and points of interest for a destination city from the database. "
+        "Falls back to generic activities if no city-specific ones are found. "
+        "Example: search_activities('Barcelona')"
+    )
+)
+def search_activities(city: str) -> list[dict[str, Any]]:
+    """Look up activities for the given city from PostgreSQL."""
+    with tracer.start_as_current_span("search_activities") as span:
+        span.set_attribute("activities.city", city)
+        tool_calls.add(1, {"tool": "search_activities"})
+        logger.info(f"search_activities called for: {city}")
+
+        try:
+            conn = psycopg2.connect(
+                host=PG_HOST, user=PG_USER, password=PG_PASSWORD, dbname=PG_DB
+            )
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, title, description, city FROM activities "
+                "WHERE LOWER(city) = LOWER(%s) LIMIT 10;",
+                (city,),
+            )
+            rows = cur.fetchall()
+            if not rows:
+                cur.execute(
+                    "SELECT id, title, description, city FROM activities "
+                    "WHERE city IS NULL LIMIT 10;"
+                )
+                rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            results = [
+                {"id": r[0], "title": r[1], "description": r[2], "city": r[3] or city}
+                for r in rows
+            ]
+            span.set_attribute("activities.results_count", len(results))
+            return results
+        except Exception as e:
+            tool_errors.add(1, {"tool": "search_activities"})
+            logger.error(f"search_activities error: {e}")
+            span.record_exception(e)
+            raise
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    logger.info(f"Starting {SERVICE} on port {port}")
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=port, path="/mcp")

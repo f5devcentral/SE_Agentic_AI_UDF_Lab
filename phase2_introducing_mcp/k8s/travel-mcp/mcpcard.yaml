@@ -1,0 +1,104 @@
+---
+apiVersion: travel.demo/v1alpha1
+kind: MCPCard
+metadata:
+  name: travel-mcp-card
+  namespace: demo-travel
+  labels:
+    app: travel-mcp
+spec:
+  serverName: travel-mcp-server
+  version: "1.0.0"
+  description: >
+    Travel data MCP server. Provides real-time (generated) flight search,
+    hotel availability, and activity discovery for travel planning applications.
+  instructions: >
+    Use this server when a user wants to plan a trip. Call search_flights first
+    to find available flights, then search_hotels for accommodation at the
+    destination, and finally search_activities to suggest things to do.
+    Always pass dates in YYYY-MM-DD format.
+
+  transport: streamable-http
+  endpoint:
+    path: /mcp
+    port: 8000
+    nodePort: 30100
+
+  tools:
+    - name: search_flights
+      description: >
+        Search for available flights between two cities on a given date.
+        Returns 3-6 flight options sorted by price ascending.
+      inputSchema:
+        type: object
+        required: [origin, destination, date]
+        properties:
+          origin:
+            type: string
+            description: Departure city name
+          destination:
+            type: string
+            description: Arrival city name
+          date:
+            type: string
+            format: date
+            description: Travel date in YYYY-MM-DD format
+      examples:
+        - description: Find flights from Paris to Barcelona
+          input:
+            origin: Paris
+            destination: Barcelona
+            date: "2025-06-15"
+          expectedOutput: "List of 3-6 flights sorted by price"
+
+    - name: search_hotels
+      description: >
+        Search for hotels in a city for a given stay period.
+        Returns 3-5 options sorted by price per night with total cost.
+      inputSchema:
+        type: object
+        required: [city, checkin, checkout]
+        properties:
+          city:
+            type: string
+            description: Destination city
+          checkin:
+            type: string
+            format: date
+            description: Check-in date YYYY-MM-DD
+          checkout:
+            type: string
+            format: date
+            description: Check-out date YYYY-MM-DD
+      examples:
+        - description: Find hotels in Barcelona for 5 nights
+          input:
+            city: Barcelona
+            checkin: "2025-06-15"
+            checkout: "2025-06-20"
+          expectedOutput: "List of 3-5 hotels with total price calculated"
+
+    - name: search_activities
+      description: >
+        Retrieve activities and points of interest for a destination city.
+        Queries PostgreSQL, falls back to generic activities if none found.
+      inputSchema:
+        type: object
+        required: [city]
+        properties:
+          city:
+            type: string
+            description: City to find activities in
+      examples:
+        - description: Find activities in Barcelona
+          input:
+            city: Barcelona
+          expectedOutput: "List of activities with title and description"
+
+  observability:
+    metricsPath: /metrics
+    logsEnabled: true
+    tracingEnabled: true
+
+  auth:
+    type: none

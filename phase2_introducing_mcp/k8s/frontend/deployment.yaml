@@ -1,0 +1,29 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: demo-travel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: 10.1.1.7:30500/demo-travel/frontend_mcp:v0.4
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          env:
+            - name: TRAVEL_MCP_URL
+              value: "http://travel-mcp:8000/mcp"
+            - name: WEATHER_MCP_URL
+              value: "http://weather-mcp:8001/mcp"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
