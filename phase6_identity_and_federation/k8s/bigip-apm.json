@@ -1,0 +1,37 @@
+{
+    "class": "AS3",
+    "action": "deploy",
+    "persist": true,
+    "declaration": {
+        "class": "ADC",
+        "schemaVersion": "3.38.0",
+        "demo_travel_tenant": {
+            "class": "Tenant",
+            "Flight_API_Secured": {
+                "class": "Application",
+                "template": "generic",
+                "JWT_Validation_Policy": {
+                    "class": "AccessControl_Policy",
+                    "url": "https://obs-keycloak.iam.svc.cluster.local:8080/realms/travel-realm/protocol/openid-connect/certs",
+                    "audience": "flight-agent"
+                },
+                "Agent_VIP": {
+                    "class": "Service_HTTP",
+                    "virtualAddresses": ["10.1.1.100"],
+                    "pool": "Flight_Agent_Pool",
+                    "profileAccess": {"use": "JWT_Validation_Policy"}
+                },
+                "Flight_Agent_Pool": {
+                    "class": "Pool",
+                    "monitors": ["http"],
+                    "members": [
+                        {
+                            "servicePort": 8000,
+                            "serverAddresses": ["flight-agent.demo-travel.svc.cluster.local"]
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langgraph-orchestrator
+  namespace: demo-travel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: langgraph-orchestrator
+  template:
+    metadata:
+      labels:
+        app: langgraph-orchestrator
+    spec:
+      containers:
+      - name: orchestrator
+        image: localhost:30500/demo-travel/langgraph-orchestrator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        env:
+        # Route logic through the BiFrost gateway instead of directly to Ollama
+        - name: BIFROST_GATEWAY_URL
+          value: "http://bifrost-gateway:8080"
+        
+        # LangSmith Observability Context
+        - name: LANGCHAIN_TRACING_V2
+          value: "true"
+        - name: LANGCHAIN_PROJECT
+          value: "agentic-travel-lab"
+        - name: LANGCHAIN_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: langsmith-secret
+              key: API_KEY
+
+        # OpenTelemetry Context
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector:4317"
+        - name: OTEL_SERVICE_NAME
+          value: "langgraph-orchestrator"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: langgraph-orchestrator
+  namespace: demo-travel
+spec:
+  selector:
+    app: langgraph-orchestrator
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

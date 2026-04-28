@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bifrost-gateway
+  namespace: demo-travel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bifrost-gateway
+  template:
+    metadata:
+      labels:
+        app: bifrost-gateway
+    spec:
+      containers:
+      - name: bifrost
+        # Note: Replace with the exact F5 BiFrost image provided in your lab environment
+        image: f5networks/bifrost:latest 
+        ports:
+        - containerPort: 8080
+        env:
+        - name: OLLAMA_ENDPOINT
+          value: "http://ollama:11434"
+        - name: CALYPSO_AI_TENANT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: bifrost-secrets
+              key: CALYPSO_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bifrost-gateway
+  namespace: demo-travel
+spec:
+  selector:
+    app: bifrost-gateway
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080

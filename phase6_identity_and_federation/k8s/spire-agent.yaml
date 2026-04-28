@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: spire
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+  template:
+    metadata:
+      labels:
+        app: spire-agent
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.8.2
+          args: ["-config", "/run/spire/config/agent.conf"]
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-bundle
+              mountPath: /run/spire/bundle
+            - name: spire-sockets
+              mountPath: /tmp/spire-sockets
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-agent-config
+  namespace: spire
+data:
+  agent.conf: |
+    agent {
+      data_dir = "/run/spire/data"
+      log_level = "DEBUG"
+      server_address = "spire-server.spire.svc.cluster.local"
+      server_port = "8081"
+      socket_path = "/tmp/spire-sockets/workload_api.sock"
+      trust_bundle_path = "/run/spire/bundle/bundle.crt"
+      trust_domain = "demo.travel.local"
+    }
+    plugins {
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          cluster = "OBS"
+        }
+      }
+      KeyManager "memory" {
+        plugin_data {
+        }
+      }
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          kubelet_read_only_port = "10255"
+        }
+      }
+    }
