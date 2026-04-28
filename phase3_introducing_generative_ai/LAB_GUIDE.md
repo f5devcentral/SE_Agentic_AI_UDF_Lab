@@ -44,7 +44,7 @@ MinIO (S3) ──► ETL job ──► nomic-embed-text (Ollama) ──► pgvec
 
 | Component         | Port/URL                        | Role |
 |-------------------|---------------------------------|------|
-| Ollama            | `http://ollama:11434`           | LLM backend: `mistral:7b-instruct-q4_K_M` (reasoning), `nomic-embed-text` (embeddings) |
+| Ollama            | `http://ollama:11434`           | LLM backend: `llama3.2:3b` (reasoning), `nomic-embed-text` (embeddings) |
 | PostgreSQL ragdb  | `:5432`                         | pgvector store — `documents` table, `VECTOR(768)` |
 | MinIO             | `:9000`                         | S3-compatible object store, `travel-data` bucket |
 | ETL job           | (Kubernetes Job)                | Reads MinIO, generates embeddings, writes to pgvector |
@@ -100,7 +100,7 @@ kubectl apply -f k8s/ollama.yaml
 kubectl rollout status deploy/ollama -n demo-travel
 
 # Pull models into the Ollama pod (takes several minutes on first run)
-kubectl exec -it deploy/ollama -n demo-travel -- ollama pull mistral:7b-instruct-q4_K_M
+kubectl exec -it deploy/ollama -n demo-travel -- ollama pull llama3.2:3b
 kubectl exec -it deploy/ollama -n demo-travel -- ollama pull nomic-embed-text
 ```
 
@@ -278,7 +278,7 @@ These must match the `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` values in `k8s/
 ```
 500 {'error': 'model requires more system memory than is available'}
 ```
-The `mistral:7b-instruct-q4_K_M` model requires approximately 5 GB RAM. Check pod limits:
+The `llama3.2:3b` model requires approximately 2 GB RAM. Check pod limits:
 ```bash
 kubectl describe pod -l app=ollama -n demo-travel | grep -A5 Resources
 ```
@@ -351,7 +351,7 @@ Phase 3 makes the **token cost structure** visible for the first time. For a sin
 
 | Step | Model | Approximate Tokens |
 |------|-------|--------------------|
-| Flight agent reasoning | `mistral:7b` / `llama3.2:3b` | ~800 input + ~300 output |
+| Flight agent reasoning | `llama3.2:3b` | ~800 input + ~300 output |
 | Hotel agent reasoning | same | ~700 input + ~300 output |
 | Activity agent reasoning | same | ~600 input + ~350 output |
 | Weather agent reasoning | same | ~400 input + ~200 output |
