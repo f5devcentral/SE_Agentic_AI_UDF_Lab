@@ -77,7 +77,7 @@ Reference docs: [Goals](./phase6_identity_and_federation/01-goals-and-reminders.
 The lab runs in the **F5 UDF (Unified Demonstration Facility)** across multiple K3s clusters, each dedicated to a tier of the architecture:
 
 ```bash
-kubectl config use-context APP_TOOLS   # Phase 1–2: application services
+kubectl config use-context TOOLS       # Phase 1–2: application services
 kubectl config use-context MCP         # Phase 2: MCP servers
 kubectl config use-context LLM         # Phase 3–5: LLM inference, agents, orchestrator
 ```
