@@ -37,26 +37,9 @@ Every service imports the `shared/` library which wires up OTel tracing, structu
 
 ## Deployment
 
-### Option A — Docker Compose (local development)
-
-```bash
-cd phase1_current_3tier_app
-
-# Start tools (OTel collector, etc.) then the application
-docker compose -f docker-compose-tools.yaml up -d --build
-docker compose up --build -d
-
-# Confirm all four containers report "Up"
-docker ps
-```
-
-Access the UI at `http://localhost:8080`.
-
-### Option B — Kubernetes (K3s, APP_TOOLS cluster)
-
 **Step 1 — Switch context**
 ```bash
-kubectl config use-context APP_TOOLS
+kubectl config use-context TOOLS
 ```
 
 **Step 2 — Build and push images**
@@ -124,10 +107,6 @@ Returns 3–5 hotel objects. Verify `total_price` equals `price_per_night × nig
 
 ### PostgreSQL activities
 ```bash
-# Docker Compose
-docker exec demo_travel-postgres-1 psql -U travel -d travel -c "SELECT * FROM activities;"
-
-# Kubernetes
 kubectl exec -n demo-travel deploy/postgres -- psql -U travel -d travel -c "SELECT * FROM activities;"
 ```
 Expect 10 rows seeded from `postgres/init.sql`, with cities Barcelona, Paris, and Rome.
@@ -152,16 +131,16 @@ Output contains hotel names, airline names, and activity titles rendered server-
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Container exits with code 1 | Python import error | `docker logs <id>` to see traceback |
-| `500 Internal Server Error` on frontend | DB not ready or volume stale | `docker compose down -v && docker compose up -d` |
+| Pod in `CrashLoopBackOff` | Python import error | `kubectl logs -n demo-travel deploy/frontend` to see traceback |
+| `500 Internal Server Error` on frontend | DB not ready | `kubectl rollout restart deploy/postgres -n demo-travel` and wait for it to become ready |
 | `No activities found for <city>` | City not in DB | Insert rows (see below) |
-| `ModuleNotFoundError: No module named 'shared'` | Dockerfile missing `COPY shared/ shared/` | Fix Dockerfile, `docker compose up --build -d` |
-| Flights or hotels return empty | Service unreachable | `docker ps` — confirm all four containers are `Up` |
-| Schema error after code change | Old volume still present | `docker compose down -v` before rebuilding |
+| `ModuleNotFoundError: No module named 'shared'` | Dockerfile missing `COPY shared/ shared/` | Fix Dockerfile, rebuild and push image, then `kubectl rollout restart deploy/frontend -n demo-travel` |
+| Flights or hotels return empty | Service unreachable | `kubectl get pods -n demo-travel` — confirm all pods are `Running` |
+| Schema error after code change | Old PVC still present | Delete the postgres PVC and redeploy: `kubectl delete pvc -n demo-travel -l app=postgres` |
 
 **Inserting activities for a new city:**
 ```bash
-docker exec demo_travel-postgres-1 psql -U travel -d travel << 'EOF'
+kubectl exec -n demo-travel deploy/postgres -- psql -U travel -d travel << 'EOF'
 INSERT INTO activities (title, description, city) VALUES
     ('Eiffel Tower',    'Visit the symbol of Paris',     'Paris'),
     ('Louvre Museum',   'Home of the Mona Lisa',         'Paris'),
