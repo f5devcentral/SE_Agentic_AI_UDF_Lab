@@ -33,7 +33,7 @@ Reference docs: [Goals](./phase2_introducing_mcp/01-goals-and-reminders.md) · [
 ---
 
 ### Phase 3 — Introducing Generative AI
-Ollama runs locally on CPU with `mistral:7b-instruct-q4_K_M` for reasoning and `nomic-embed-text` for embeddings. Travel documents in MinIO are chunked, embedded, and stored in pgvector. An orchestrator coordinates five specialist agents — flight, hotel, activity, weather, and travel — each of which receives pre-fetched MCP data and applies LLM reasoning to produce a ranked decision.
+Ollama runs locally on CPU with `llama3.2:3b` for reasoning and `nomic-embed-text` for embeddings. Travel documents in MinIO are chunked, embedded, and stored in pgvector. An orchestrator coordinates five specialist agents — flight, hotel, activity, weather, and travel — each of which receives pre-fetched MCP data and applies LLM reasoning to produce a ranked decision.
 
 Communication between the orchestrator and agents follows the **A2A (Agent-to-Agent) JSON-RPC 2.0** protocol. Agents advertise their capabilities at `/.well-known/agent.json` and never call MCP directly — the orchestrator's governance layer handles all tool calls on their behalf.
 
